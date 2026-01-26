@@ -13,7 +13,7 @@ Frame number 24 bits.
 
 Delim2:
 Data type 6 bits
-Resrved   2 bits
+Reserved   2 bits
 User Flag 16 bits
 Generated data size 20 bits
 Xfered data size4 20 bit

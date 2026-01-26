@@ -21,13 +21,36 @@ pub mod mikumari_format {
     impl Delimeter1 {
         pub fn new(time_offset : u16, frame_number: u32) -> Delimeter1 {
             let mut value : u64 = 0;
-            value |= (Delimeter1 as u64) << (32-6);
+            value |= (Delimeter1 as u64) << (58);
             value |= (time_offset as u64) << 24;
             value |= frame_number as u64;
 
             Delimeter1 {
                 delimeter : value
             }
+        }
+        pub fn get(&self) -> u64 {
+            self.delimeter
+        }
+    }
+    #[cfg(test)]
+    mod delimtest {
+        use super::*;
+
+        #[test]
+        fn new_1() {
+            let d = Delimeter1::new(0,0);
+            assert_eq!(d.get(), 0x6000000000000000)
+        }
+        #[test]
+        fn new_2() {
+            let d = Delimeter1::new(0, 1234);
+            assert_eq!(d.get() & 0xffffff, 1234u64);
+        }
+        #[test]
+        fn new_3() {
+            let d = Delimeter1::new(65535, 0);
+            assert_eq!((d.get() >> 24) & 0xffff, 65535);
         }
     }
 }
