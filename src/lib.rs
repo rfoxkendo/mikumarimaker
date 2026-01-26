@@ -14,10 +14,10 @@ pub mod mikumari_format {
 
     /// A heartbeat delimieter1 and its data:
     /// 
-    struct Delimeter1 {
+    pub struct Delimeter1 {
         delimeter : u64
     }
-    struct Delimeter2 {
+    pub struct Delimeter2 {
         delimeter : u64
     }
     // Sample does not show the throttles so skip to the chase:
@@ -25,17 +25,17 @@ pub mod mikumari_format {
     // low resolution as I don't see separate data types for them.
     // Assumption:  Time over threshold will only be present in the trailing
     // time as the TOT is from leading to trailing edge(?).
-    struct HRTDCLeading {
+    pub struct HRTDCLeading {
         leading : u64
     }
-    struct HRTDCTrailing {
+    pub struct HRTDCTrailing {
         trailing : u64
     }
 
-    struct LRTDCLeading {
+    pub struct LRTDCLeading {
         leading : u64
     }
-    struct LRTDCTrailing {
+    pub struct LRTDCTrailing {
         trailing : u64
     }
     // TODO: range check the inputs as they're not full sized.
