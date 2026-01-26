@@ -1,0 +1,1 @@
+Generate syntetic mikumari data in ring items
