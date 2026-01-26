@@ -84,6 +84,7 @@ pub mod mikumari_format {
         // Getters:
 
         pub fn channel(&self) -> u8 {
+            
             ((self.leading  >> 51) & 0x7f) as u8
         }
         pub fn TOT(&self) -> u32 {
@@ -102,7 +103,7 @@ pub mod mikumari_format {
             // maks off the data type and replace it with 0x34
 
             let mut data = leading.leading;
-            data &= !(TDC_LeadingData as u64) << 58;
+            data &= !((TDC_LeadingData as u64) << 58);
             data |= (TDC_TrailingData as u64)<< 58;
 
             HRTDCTrailing {
@@ -113,7 +114,7 @@ pub mod mikumari_format {
         // The dirt we use in this method gets used in all others as well.
         pub fn channel(&self) -> u8 {
             let leading = HRTDCLeading { leading: self.trailing};  // the dirt:
-
+            
             leading.channel()
         }
         pub fn TOT(&self) -> u32 {
@@ -170,7 +171,8 @@ pub mod mikumari_format {
     mod hrtdc {
         use super::*;
         #[test]
-        pub fn leading_new() {
+        // Leading edge tests:
+         fn leading_new() {
             let leading = HRTDCLeading::new(10, 100, 12345);
 
             // See that the fields got properly set as well as the type:
@@ -180,19 +182,48 @@ pub mod mikumari_format {
             assert_eq!((leading.leading >> 29) & 0x3fffff, 100);
         }
         #[test]
-        pub fn chan_1() {
+         fn chan_1() {
+            
             let leading = HRTDCLeading::new(10, 100, 12345);
             assert_eq!(leading.channel(), 10);
         }
         #[test]
-        pub fn tot_1() {
+         fn tot_1() {
             let leading = HRTDCLeading::new(10, 100, 12345);
             assert_eq!(leading.TOT(), 100);
         }
         #[test]
-        pub fn time_() {
+         fn time_1() {
             let leading = HRTDCLeading::new(10, 100, 12345);
             assert_eq!(leading.Time(), 12345);
+        }
+        // trailing edge tests
+
+        #[test]
+         fn trailing_new() {
+            let trailing = HRTDCTrailing::new(10, 100, 12345);
+
+            // See that the fields got properly set as well as the type:
+
+            assert_eq!(trailing.trailing >>58, TDC_TrailingData as u64);
+            assert_eq!(trailing.trailing & 0x1fffffff, 12345);
+            assert_eq!((trailing.trailing >> 29) & 0x3fffff, 100);
+        }
+        #[test]
+         fn chan_2() {
+            
+            let trailing = HRTDCTrailing::new(10, 100, 12345);
+            assert_eq!(trailing.channel(), 10);
+        }
+        #[test]
+         fn tot_2() {
+            let trailing = HRTDCTrailing::new(10, 100, 12345);
+            assert_eq!(trailing.TOT(), 100);
+        }
+        #[test]
+         fn time_2() {
+            let trailing = HRTDCTrailing::new(10, 100, 12345);
+            assert_eq!(trailing.Time(), 12345);
         }
     }
 }
