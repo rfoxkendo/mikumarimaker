@@ -1,0 +1,50 @@
+Generate simulated mikumari data in ring items.  The ring item type is 51 for frame data with TDC data.
+
+Mikumari format:
+
+Heartbeat delimeters::
+ 
+Delim1:
+data type 6 bits
+Reserved  2 bits
+Flag     16 bits
+LACCP time offset 16 bits (lsb = 0.9765625 ps)
+Frame number 24 bits.
+
+Delim2:
+Data type 6 bits
+Resrved   2 bits
+User Flag 16 bits
+Generated data size 20 bits
+Xfered data size4 20 bit
+
+HRTDC data:
+blob:https://teams.microsoft.com/d39be59e-5679-48d9-8246-6f755682c4ce
+
+HR TDC:
+Data type 6 bits:
+Channel#  7 bits
+Time over threshold 22 bits.
+TDC time  29 bits  (LSB 0.9765625ps)
+
+LR TDC:
+
+data type:  6 bits
+channel     8 bits
+Time over threshold 16 bits
+TDC Timing  19 bits (LSB 1ns)
+Padding 15 bits.  ( zero bits).
+
+
+Data types:
+
+ 
+b001011	TDC leading data
+b001101	TDC trailing data
+b011001	InputThrottlingT1Start
+b010001	InputThrottlingT1End
+b010010	InputThrottlingT2Start
+b010010	InputThrottlingT2End
+b011000 first delimiter
+b011110 for the second unless
+
