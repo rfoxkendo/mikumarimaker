@@ -19,7 +19,6 @@ Generated data size 20 bits
 Xfered data size4 20 bit
 
 HRTDC data:
-blob:https://teams.microsoft.com/d39be59e-5679-48d9-8246-6f755682c4ce
 
 HR TDC:
 Data type 6 bits:

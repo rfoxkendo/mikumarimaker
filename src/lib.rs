@@ -166,4 +166,33 @@ pub mod mikumari_format {
             assert_eq!((d.get() >> 20) & 0xfffff, 12345u64);
         }
     }
+    #[cfg(test)] 
+    mod hrtdc {
+        use super::*;
+        #[test]
+        pub fn leading_new() {
+            let leading = HRTDCLeading::new(10, 100, 12345);
+
+            // See that the fields got properly set as well as the type:
+
+            assert_eq!(leading.leading >>58, TDC_LeadingData as u64);
+            assert_eq!(leading.leading & 0x1fffffff, 12345);
+            assert_eq!((leading.leading >> 29) & 0x3fffff, 100);
+        }
+        #[test]
+        pub fn chan_1() {
+            let leading = HRTDCLeading::new(10, 100, 12345);
+            assert_eq!(leading.channel(), 10);
+        }
+        #[test]
+        pub fn tot_1() {
+            let leading = HRTDCLeading::new(10, 100, 12345);
+            assert_eq!(leading.TOT(), 100);
+        }
+        #[test]
+        pub fn time_() {
+            let leading = HRTDCLeading::new(10, 100, 12345);
+            assert_eq!(leading.Time(), 12345);
+        }
+    }
 }
