@@ -9,7 +9,7 @@ pub mod mikumari_format {
     const Input_Throttle_T1_End : u8 = 0b010001;
     const Input_Throttle_T2_Start : u8 = 0b010010;
     const Input_Throttle_T2_End : u8   = 0b010010;
-    const Delimeter1  : u8 = 0b011000;
+    const Delimeter1  : u8 = 0b011100;
     const Delimeter2  : u8 = 0b011110;
 
     /// A heartbeat delimieter1 and its data:
@@ -20,6 +20,10 @@ pub mod mikumari_format {
     struct Delimeter2 {
         delimeter : u64
     }
+    // If I read the docs correctly, there's no InputThrottleingT1 only 
+    // T2 for whatever reason.
+
+
 
     // TODO: range check the inputs as they're not full sized.
     impl Delimeter1 {
@@ -51,7 +55,7 @@ pub mod mikumari_format {
         }
         pub fn get (&self) -> u64 {
             self.delimeter
-        }
+        }      
     }
     #[cfg(test)]
     mod delim1test {
@@ -60,7 +64,7 @@ pub mod mikumari_format {
         #[test]
         fn new_1() {
             let d = Delimeter1::new(0,0);
-            assert_eq!(d.get(), 0x6000000000000000)
+            assert_eq!(d.get(), 0x7000000000000000)
         }
         #[test]
         fn new_2() {

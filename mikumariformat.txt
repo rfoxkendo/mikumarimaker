@@ -45,6 +45,35 @@ b011001	InputThrottlingT1Start
 b010001	InputThrottlingT1End
 b010010	InputThrottlingT2Start
 b010010	InputThrottlingT2End
-b011000 first delimiter
+b011100 first delimiter
 b011110 for the second unless
 
+Example:
+Heartbeat delimiter 0
+Heartbeat: 70084000000f865f 7800000004000020
+First Delimiter: 70084000000f865f ( 111000000001000010000000000000000000000000011111000011001011111 )
+Data type 0
+Reserve 0
+Flags 2112 (Firmware bug - 12-th bit: Overflow and 7th bit: Input throttling type2 are high)
+LACCP fine offset 0  (TDC value is already corrected in FPGA)
+Heartbeat frame number 1017439
+Second Delimiter: 7800000004000020 ( 111100000000000000000000000000000000100000000000000000000100000 )
+Data type 2
+Reserve 0
+User reg. 0
+Generated data size [byte] 64 (Firmware bug Transferred and generated data sizes should be 16byte and 32byte, respectively)
+Transferred data size [byte] 32 (Firmware bug Transferred and generated data sizes should be 16byte and 32byte, respectively)
+HRTDC data: 2c1831c96c2f265e 2c0031bd2c2f2699
+Data word: 2c1831c96c2f265e ( 10110000011000001100011100100101101100001011110010011001011110 ) (Leading edge data word)
+Data type 11
+Channel 3
+TOT 101963
+TDC timing 204416606 (Leading edge data timing)
+Data word: 2c0031bd2c2f2699 ( 10110000000000001100011011110100101100001011110010011010011001 ) (Leading edge data word)
+Data type 11
+Channel 0
+TOT 101865
+TDC timing 204416665 (Leading edge data timing)
+ 
+
+ 
