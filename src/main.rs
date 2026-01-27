@@ -4,9 +4,14 @@ use std::fs::File;
 use std::env;
 use std::process::exit;
 use std::path;
+use rand::prelude::*;
 
 const TDC_FRAME_ITEM_TYPE : u32 = 51;     // Ring item type for TDC frame data.
-const WINDOW_WIDTH : u16 =1000;
+const WINDOW_WIDTH : u16 =1000;           // ps?
+const EMPTY_FRAME_PROBABILITY : f32 = 0.25;  // 1/4 of the frames are empty.
+const CHAN_HIT_PROBABILITY  : f32 = 0.5;     // 1/2 of the channels have hits.
+const TOT_RANGE : f32 = 100.0;           // Range of time over threshold times.
+const START_RANGE : f32 = 1000.0;        // Range of start times.
 fn main() {
     // Get the command line argumnents. We need:
     // path to program (always [0]).
@@ -48,13 +53,19 @@ fn Usage(pgm_name : &str) {
     eprintln!("    output_file is the name of the output file to write");
 }
 fn make_frames(f : &mut File, num_frames : u32) {
+    
+    
     let mut t = 0;
     for fno in 0..num_frames {
-        let frame = make_empty_frame(t, fno);
-        write_frame(f, t, frame);
-
+        if rand::random::<f32>() < EMPTY_FRAME_PROBABILITY {
+            let frame = make_empty_frame(t, fno);
+            write_frame(f, t, frame);
+        } else {
+            println!("Non-empty frame");
+        }
         t += WINDOW_WIDTH;
     }
+
 }
 // Make an empty frame.. that is delim1 followed by delim 2
 // with data_size = 0 (I guess)?
