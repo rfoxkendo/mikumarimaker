@@ -89,3 +89,17 @@ fn write_frame(f : &mut File, t : u16, frame : Vec<u64>)  {
         }
     };
 }
+// Add a leading edge pulse for channel with the specified time.
+//  Note that for the leading edge, the TOT is 0 (I think).
+
+fn add_leading_hit(frame : &mut Vec<u64>, channel: u8, time : u32) {
+    let hit = mikumari_format::HRTDCLeading::new(channel, 0, time);
+    frame.push(hit.get());
+}
+// Add a trailing edge pulse for a channel with the specified
+// le and te time tot is te-le time.
+
+fn add_trailing_hit(frame : &mut Vec<u64>, channel : u8, letime : u32, tetime : u32) {
+    let hit = mikumari_format::HRTDCTrailing::new(channel, tetime-letime, tetime);
+    frame.push(hit.get());
+}
