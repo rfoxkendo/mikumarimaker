@@ -93,6 +93,9 @@ pub mod mikumari_format {
         pub fn Time(&self) -> u32 {
             (self.leading & 0x1FFFFFFF) as u32
         }
+        pub fn get(&self) -> u64 {
+            self.leading
+        }
     }
     // In fact, other than the data type fie.d, 
     // this is just like the leading edge so we do do some dirty stuff.
@@ -124,6 +127,9 @@ pub mod mikumari_format {
         pub fn Time(&self) -> u32 {
             let leading = HRTDCLeading { leading: self.trailing};
             leading.Time()
+        }
+        pub fn get(&self) -> u64 {
+            self.trailing
         }
     }
     #[cfg(test)]
