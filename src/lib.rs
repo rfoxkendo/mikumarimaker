@@ -1,6 +1,10 @@
+
 //! Contains the formatting  stuff for mikumari data
 //! 
+//! 
 pub mod mikumari_format {
+    use std::io::Read;
+    use std::io;
     // Data type values:
 
     const TDC_LeadingData : u8 = 0b001011;
@@ -50,6 +54,11 @@ pub mod mikumari_format {
                 delimeter : value
             }
         }
+        pub fn fromu64(data: u64) -> Delimeter1 {
+            Delimeter1 {
+                delimeter : data
+            }
+        }
         pub fn get(&self) -> u64 {
             self.delimeter
         }
@@ -66,6 +75,11 @@ pub mod mikumari_format {
             }
 
         }
+        pub fn fromu64(data: u64) -> Delimeter2 {
+            Delimeter2 {
+                delimeter: data
+            }
+        }
         pub fn get (&self) -> u64 {
             self.delimeter
         }      
@@ -80,6 +94,9 @@ pub mod mikumari_format {
             HRTDCLeading {
                 leading : value
             }
+        }
+        pub fn fromu64(data : u64)-> HRTDCLeading {
+            HRTDCLeading  { leading : data}
         }
         // Getters:
 
@@ -113,6 +130,11 @@ pub mod mikumari_format {
                 trailing : data
             }
         }
+        pub fn fromu64(data : u64) -> HRTDCTrailing {
+            HRTDCTrailing {
+                trailing: data
+            }
+        }
         // Here's where the dirt is, we use the LE functions.
         // The dirt we use in this method gets used in all others as well.
         pub fn channel(&self) -> u8 {
@@ -132,6 +154,55 @@ pub mod mikumari_format {
             self.trailing
         }
     }
+
+    // This enum is data that can come from a Mikumari data source:
+
+    pub enum MikumariDatum {
+        Heartbeat0(Delimeter1),
+        Heartbeat1(Delimeter2),
+        LeadingEdge(HRTDCLeading),
+        TrailingEdge(HRTDCTrailing),
+        Other(u64)
+    }
+
+    pub struct MikumariReader {
+        source : Box<dyn Read>,
+    }
+    impl MikumariReader {
+        // Read the next u64 for the data source:
+        fn readu64(&mut self) -> io::Result<u64> {
+            let mut buf : [u8;8] = [0;8];
+            self.source.read_exact(&mut buf)?;
+            Ok(u64::from_le_bytes(buf))
+
+        }
+
+        pub fn new(src : Box<dyn Read>) -> MikumariReader  {
+            MikumariReader {
+                source : src
+            }
+        }
+        pub fn read(&mut self) -> io::Result<MikumariDatum> {
+            let datum = self.readu64()?;
+
+            // Based on the format field, we return the right type of datum.
+
+            let dtype :u8 = (datum >> (64-6)) as u8;             // Position the  type.
+
+            if dtype == TDC_LeadingData {
+                Ok(MikumariDatum::LeadingEdge(HRTDCLeading::fromu64(datum)))
+            } else if dtype == TDC_TrailingData {
+                Ok(MikumariDatum::TrailingEdge(HRTDCTrailing::fromu64(datum)))
+            } else if dtype == Delimeter1 {
+                Ok(MikumariDatum::Heartbeat0(Delimeter1::fromu64(datum)))
+            } else if dtype== Delimeter2 {
+                Ok(MikumariDatum::Heartbeat1(Delimeter2::fromu64(datum)))
+            } else {
+                Ok(MikumariDatum::Other(datum))
+            }
+        }
+    } 
+
     #[cfg(test)]
     mod delim1test {
         use super::*;
