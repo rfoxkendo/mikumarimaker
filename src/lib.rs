@@ -62,6 +62,12 @@ pub mod mikumari_format {
         pub fn get(&self) -> u64 {
             self.delimeter
         }
+        pub fn frame(&self) -> u64 {
+            self.delimeter & 0xffffff
+        }
+        pub fn time_offset(&self) -> u64 {
+            (self.delimeter >> 24) & 0xffff
+        }
     }
     impl Delimeter2 {
         pub fn new(data_size: u32)-> Delimeter2 {
@@ -82,7 +88,10 @@ pub mod mikumari_format {
         }
         pub fn get (&self) -> u64 {
             self.delimeter
-        }      
+        }    
+        pub fn datasize(&self) -> u64 {
+            self.delimeter & 0xfffff
+        }  
     }
     impl HRTDCLeading {
         pub fn new(chan : u8, tot : u32, time : u32) -> HRTDCLeading {
@@ -173,7 +182,8 @@ pub mod mikumari_format {
         fn readu64(&mut self) -> io::Result<u64> {
             let mut buf : [u8;8] = [0;8];
             self.source.read_exact(&mut buf)?;
-            Ok(u64::from_le_bytes(buf))
+    
+            Ok(u64::from_ne_bytes(buf))
 
         }
 
