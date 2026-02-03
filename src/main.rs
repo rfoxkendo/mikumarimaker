@@ -2,33 +2,44 @@ use mikumarimaker::mikumari_format;
 use std::env::args;
 use std::process::exit;
 
-use std::io::{BufReader, BufRead};
+use std::io::BufReader;
 use std::fs::File;
+use rust_ringitem_format::{RingItem};
 
 const MIKUMARI_FRAME_ITEM_TYPE: u32=51;
-const heart_beat_microseconds : f64 = 524.288; // Time between heart beats.
-const tdc_tick_ps : f64 = 0.9765625;           // LSB value for tdc.
+const HEART_BEAT_MICROSECONDS : f64 = 524.288; // Time between heart beats.
+const TDC_TICK_PS : f64 = 0.9765625;           // LSB value for tdc.
 fn main() ->std::io::Result<()> {
     let argv : Vec<String> = args().collect();
-    if argv.len() != 2 {
-        eprintln!("This program rerquires the name of a mmikumari input file ");
+    if argv.len() != 3 {
+        eprintln!("This program rerquires the name of a mmikumari input file and ring output file ");
         exit(-1);
     }
     let fname = argv[1].clone();
+    let ring_name = argv[2].clone();
 
-    // Open the file, attache a buffered reader to it and box it to create
+    // Open the file, attach a buffered reader to it and box it to create
     // a MikumariReader:
 
     let f = File::open(&fname)?;
     let reader = BufReader::new(f);
-    let mut source = Box::new(reader);
+    let source = Box::new(reader);
 
     let mut data_source = mikumari_format::MikumariReader::new(source);
     
+    // Open the output ring item file:
+
+    let mut ring_file = File::create(ring_name).expect("Unable to create ring file");
+
+    // Mikumari data has a partial frame at the front. We _could_
+    // figure out how to timestamp it, but, instead, we'll just skip
+    // that data as that seems to be standard.
+
     let hb = skip_partial_frame(&mut data_source);
     println!("Found first hb: {}", hb.frame());
+
     let hb_t0 = hb.frame();        // our t0 frame.
-    dump_data(&mut data_source, hb_t0);
+    dump_data(&mut data_source, hb_t0, &mut ring_file);
 
     Ok(())
 }
@@ -51,46 +62,68 @@ fn skip_partial_frame(src : &mut mikumari_format::MikumariReader) ->
 }
 // t0 - the frame # of t0.
 // We're going to try to make the times into absolutes as well.
-fn dump_data(src : &mut mikumari_format::MikumariReader, _t0 : u64) {
+// Ring items we make:
+//   These consist of raw hit values.
+//   the timestamp comes from the relative frame_no, but the first
+//   u64 bit item is the absolute frame number.
+//
+fn dump_data(src : &mut mikumari_format::MikumariReader, t0 : u64, rf : &mut File) {
     let mut frame_no = 0;                       // THe current frame number.
+    let mut absolute_frame = t0;
+
+    // start a ring item for the first frame:
+
+    let mut ring_item = RingItem::new_with_body_header(
+        MIKUMARI_FRAME_ITEM_TYPE,
+        hb_frame_to_ts(frame_no) as u64,
+        0, 0
+     );
+     ring_item.add(absolute_frame);
     while let Ok(data) = src.read() {
         match data {
             mikumari_format::MikumariDatum::LeadingEdge(le) => {
-                println!("Leading edge time: ");
-                println!("Chan: {} time: {:x}", le.channel(), le.Time());
-                let full_time = compute_full_time(frame_no, le.Time());
-                println!("Cumulative time {:x}", full_time);
+                ring_item.add(le.get());
             },
             mikumari_format::MikumariDatum::TrailingEdge(te) => {
-                println!("Trailing edge time: ");
-                println!("Chan {}, time: {:x}", te.channel(), te.Time());
-                let full_time = compute_full_time(frame_no, te.Time());
-                println!("Cumulative time {:x}", full_time);
+                ring_item.add(te.get());
             }
             mikumari_format::MikumariDatum::Heartbeat0(d) => {
-                println!(
-                    "Delimeter1 frame {} --------------", 
-                    d.frame()
-                    
-                );
+                // Heart beat means we write the item and 
+                // start a new one:
+
+                ring_item.write_item(rf).expect("Failed to write a ring item!!");
                 frame_no += 1;                   // Next frame.
+                absolute_frame += 1;
+                // Start the new ring item:
+
+                ring_item = RingItem::new_with_body_header(
+                    MIKUMARI_FRAME_ITEM_TYPE,
+                    hb_frame_to_ts(frame_no) as u64,
+                    0,0
+                );
+                ring_item.add(absolute_frame);
             }
-            mikumari_format::MikumariDatum::Heartbeat1(d) => {
-                println!("Delimeter2 datasize: {}", d.datasize());
-            }
-            mikumari_format::MikumariDatum::Other(d) => 
-                println!("Other data : {:x}", d)
+            mikumari_format::MikumariDatum::Heartbeat1(d) => (),
+            mikumari_format::MikumariDatum::Other(d) => (),
         }
     }
+    // Flush the last ring item out:
+  
+    ring_item.write_item(rf).expect("Unable to flush the last ring item out");
 }
-// FIgure out, given a frame number the full 64 bit time
+// Figure out, given a frame number and frame relative time
+// the full 64 bit time of a hit.
 
 fn compute_full_time(frame : u64, frame_time : u32) -> u64 {
     // Turn the frame into the right units:
     // add it to the frame_time.
 
-    let mut frame_t : f64 = frame as f64 * heart_beat_microseconds; // frame_time in usec.
-    frame_t = (frame_t * (1.0e6)) / tdc_tick_ps;                   // DC units(?).
-
+    let frame_t = hb_frame_to_ts(frame);
     (frame_t + (frame_time as f64)) as u64
+}
+// Convert a frame number to a mikumari timestamp:
+
+fn hb_frame_to_ts(frame: u64) -> f64 {
+    let frame_t : f64 = frame as f64 * HEART_BEAT_MICROSECONDS; // frame_time in usec.
+    (frame_t * (1.0e6)) / TDC_TICK_PS
 }

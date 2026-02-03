@@ -7,14 +7,14 @@ pub mod mikumari_format {
     use std::io;
     // Data type values:
 
-    const TDC_LeadingData : u8 = 0b001011;
-    const TDC_TrailingData: u8 = 0b001101;
-    const Input_Throttle_T1_Start : u8 = 0b0011001;
-    const Input_Throttle_T1_End : u8 = 0b010001;
-    const Input_Throttle_T2_Start : u8 = 0b010010;
-    const Input_Throttle_T2_End : u8   = 0b010010;
-    const Delimeter1  : u8 = 0b011100;
-    const Delimeter2  : u8 = 0b011110;
+    const TDC_LEADING_DATA : u8 = 0b001011;
+    const TDC_TRAILING_DATA: u8 = 0b001101;
+    const INPUT_THROTTLE_T1_START : u8 = 0b0011001;
+    const INPUT_THROTTLE_T1_END : u8 = 0b010001;
+    const INPUT_THROTTLE_T2_START : u8 = 0b010010;
+    const INPUT_THROTTLE_T2_END : u8   = 0b010010;
+    const DELIMETER1  : u8 = 0b011100;
+    const DELIMETER2  : u8 = 0b011110;
 
     /// A heartbeat delimieter1 and its data:
     /// 
@@ -46,7 +46,7 @@ pub mod mikumari_format {
     impl Delimeter1 {
         pub fn new(time_offset : u16, frame_number: u32) -> Delimeter1 {
             let mut value : u64 = 0;
-            value |= (Delimeter1 as u64) << 58;
+            value |= (DELIMETER1 as u64) << 58;
             value |= (time_offset as u64) << 24;
             value |= frame_number as u64;
 
@@ -72,7 +72,7 @@ pub mod mikumari_format {
     impl Delimeter2 {
         pub fn new(data_size: u32)-> Delimeter2 {
             let mut value = 0u64;
-            value |= (Delimeter2 as u64) << 58;
+            value |= (DELIMETER2 as u64) << 58;
             let s = data_size as u64;
             value |= (s << 20) | s;
 
@@ -95,7 +95,7 @@ pub mod mikumari_format {
     }
     impl HRTDCLeading {
         pub fn new(chan : u8, tot : u32, time : u32) -> HRTDCLeading {
-            let mut value = (TDC_LeadingData as u64) << 58;
+            let mut value = (TDC_LEADING_DATA as u64) << 58;
             value |= (chan as u64) << 51;
             value |= (tot as u64)     << 29;
             value |= time as u64;
@@ -132,8 +132,8 @@ pub mod mikumari_format {
             // maks off the data type and replace it with 0x34
 
             let mut data = leading.leading;
-            data &= !((TDC_LeadingData as u64) << 58);
-            data |= (TDC_TrailingData as u64)<< 58;
+            data &= !((TDC_LEADING_DATA as u64) << 58);
+            data |= (TDC_TRAILING_DATA as u64)<< 58;
 
             HRTDCTrailing {
                 trailing : data
@@ -199,13 +199,13 @@ pub mod mikumari_format {
 
             let dtype :u8 = (datum >> (64-6)) as u8;             // Position the  type.
 
-            if dtype == TDC_LeadingData {
+            if dtype == TDC_LEADING_DATA {
                 Ok(MikumariDatum::LeadingEdge(HRTDCLeading::fromu64(datum)))
-            } else if dtype == TDC_TrailingData {
+            } else if dtype == TDC_TRAILING_DATA {
                 Ok(MikumariDatum::TrailingEdge(HRTDCTrailing::fromu64(datum)))
-            } else if dtype == Delimeter1 {
+            } else if dtype == DELIMETER1 {
                 Ok(MikumariDatum::Heartbeat0(Delimeter1::fromu64(datum)))
-            } else if dtype== Delimeter2 {
+            } else if dtype== DELIMETER2 {
                 Ok(MikumariDatum::Heartbeat1(Delimeter2::fromu64(datum)))
             } else {
                 Ok(MikumariDatum::Other(datum))
