@@ -173,7 +173,23 @@ pub mod mikumari_format {
         TrailingEdge(HRTDCTrailing),
         Other(u64)
     }
+    impl MikumariDatum {
+        pub fn from_u64(datum : u64 ) -> MikumariDatum {
+            let dtype :u8 = (datum >> (64-6)) as u8;             // Position the  type.
 
+            if dtype == TDC_LEADING_DATA {
+                MikumariDatum::LeadingEdge(HRTDCLeading::fromu64(datum))
+            } else if dtype == TDC_TRAILING_DATA {
+                MikumariDatum::TrailingEdge(HRTDCTrailing::fromu64(datum))
+            } else if dtype == DELIMETER1 {
+                MikumariDatum::Heartbeat0(Delimeter1::fromu64(datum))
+            } else if dtype== DELIMETER2 {
+                MikumariDatum::Heartbeat1(Delimeter2::fromu64(datum))
+            } else {
+                MikumariDatum::Other(datum)
+            }
+        }
+    }
     pub struct MikumariReader {
         source : Box<dyn Read>,
     }
@@ -197,19 +213,7 @@ pub mod mikumari_format {
 
             // Based on the format field, we return the right type of datum.
 
-            let dtype :u8 = (datum >> (64-6)) as u8;             // Position the  type.
-
-            if dtype == TDC_LEADING_DATA {
-                Ok(MikumariDatum::LeadingEdge(HRTDCLeading::fromu64(datum)))
-            } else if dtype == TDC_TRAILING_DATA {
-                Ok(MikumariDatum::TrailingEdge(HRTDCTrailing::fromu64(datum)))
-            } else if dtype == DELIMETER1 {
-                Ok(MikumariDatum::Heartbeat0(Delimeter1::fromu64(datum)))
-            } else if dtype== DELIMETER2 {
-                Ok(MikumariDatum::Heartbeat1(Delimeter2::fromu64(datum)))
-            } else {
-                Ok(MikumariDatum::Other(datum))
-            }
+            Ok(MikumariDatum::from_u64(datum))
         }
     } 
 
