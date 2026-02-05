@@ -1,6 +1,6 @@
 use mikumarimaker::mikumari_format;
 use rust_ringitem_format::{RingItem, BodyHeader, PHYSICS_EVENT};
-use frib_datasource::{data_source_factory, DataSource};
+use frib_datasource::{data_source_factory, DataSource, data_sink_factory, DataSink};
 use std::env;
 use std::process::exit;
 use std::io;
@@ -35,12 +35,8 @@ fn main() {
     // open the source:
 
     let mut source = data_source_factory(&ring_uri).expect("Could not open ring item source");
-
-    let mut sink : Box<dyn Write> = if out_path == "-" {
-        Box::new(io::stdout())
-    } else {
-        Box::new(File::create(out_path).expect("Failed to open output file"))
-    };
+    let mut sink   = data_sink_factory(&out_path).expect("Could not open ring item sink");
+    
 
     // For mikumari data, each frame -> a defenestrated frame.
     while let Some(item) = source.read() {
@@ -55,13 +51,13 @@ fn  usage() -> ! {
     eprintln!("   defenestrator  in-uri out-file");
     eprintln!("Where");
     eprintln!("   in-uri is the URI of the data source '-' means stdin");
-    eprintln!("   out-file is the path to the output ring file '-' means stdout");
+    eprintln!("   out-uri is the URI for the output");
     
 
     exit(-1);
 }
 
-fn convert_item(item : &RingItem, sink : &mut Box<dyn Write> ) {
+fn convert_item(item : &RingItem, sink : &mut Box<dyn DataSink> ) {
     let bh = item.get_bodyheader().unwrap();
     let t0 = bh.timestamp;
     let payload = item.payload();    // Vec<u8>
@@ -100,5 +96,6 @@ fn convert_item(item : &RingItem, sink : &mut Box<dyn Write> ) {
 
         cursor += size_of::<u64>();
     }
-    output.write_item(sink).expect("Unable to write ring item to sink");
+    sink.write(&output).expect("Unable to write physics event ring item");
+    
 }
