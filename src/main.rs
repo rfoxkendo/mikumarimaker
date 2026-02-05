@@ -23,7 +23,7 @@ fn main() ->std::io::Result<()> {
     // Open the file, attach a buffered reader to it and box it to create
     // a MikumariReader:
 
-    let mut source : Box<dyn Read> = 
+    let source : Box<dyn Read> = 
     if fname == "-" {
         let inf = stdin();
         Box::new(inf)
@@ -95,7 +95,7 @@ fn dump_data(src : &mut mikumari_format::MikumariReader, t0 : u64, rf : &mut Box
             mikumari_format::MikumariDatum::TrailingEdge(te) => {
                 ring_item.add(te.get());
             }
-            mikumari_format::MikumariDatum::Heartbeat0(d) => {
+            mikumari_format::MikumariDatum::Heartbeat0(_d) => {
                 // Heart beat means we write the item and 
                 // start a new one:
                 rf.write(&ring_item).expect("Failed to write a ring item to data sink.");
@@ -111,8 +111,8 @@ fn dump_data(src : &mut mikumari_format::MikumariReader, t0 : u64, rf : &mut Box
                 );
                 ring_item.add(absolute_frame);
             }
-            mikumari_format::MikumariDatum::Heartbeat1(d) => (),
-            mikumari_format::MikumariDatum::Other(d) => (),
+            mikumari_format::MikumariDatum::Heartbeat1(_d) => (),
+            mikumari_format::MikumariDatum::Other(_d) => (),
         }
     }
     // Flush the last ring item out:
@@ -120,16 +120,7 @@ fn dump_data(src : &mut mikumari_format::MikumariReader, t0 : u64, rf : &mut Box
     rf.write(&ring_item).expect("Failed to write ring item to data sink.");
     
 }
-// Figure out, given a frame number and frame relative time
-// the full 64 bit time of a hit.
 
-fn compute_full_time(frame : u64, frame_time : u32) -> u64 {
-    // Turn the frame into the right units:
-    // add it to the frame_time.
-
-    let frame_t = hb_frame_to_ts(frame);
-    (frame_t + (frame_time as f64)) as u64
-}
 // Convert a frame number to a mikumari timestamp:
 
 fn hb_frame_to_ts(frame: u64) -> f64 {
