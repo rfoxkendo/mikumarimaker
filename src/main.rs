@@ -2,9 +2,11 @@ use mikumarimaker::mikumari_format;
 use std::env::args;
 use std::process::exit;
 
-use std::io::BufReader;
+use std::io::{stdin, BufReader, Read};
 use std::fs::File;
 use rust_ringitem_format::{RingItem};
+use frib_datasource::{data_sink_factory, DataSink};
+
 
 const MIKUMARI_FRAME_ITEM_TYPE: u32=51;
 const HEART_BEAT_MICROSECONDS : f64 = 524.288; // Time between heart beats.
@@ -12,7 +14,7 @@ const TDC_TICK_PS : f64 = 0.9765625;           // LSB value for tdc.
 fn main() ->std::io::Result<()> {
     let argv : Vec<String> = args().collect();
     if argv.len() != 3 {
-        eprintln!("This program rerquires the name of a mmikumari input file and ring output file ");
+        usage();
         exit(-1);
     }
     let fname = argv[1].clone();
@@ -21,15 +23,21 @@ fn main() ->std::io::Result<()> {
     // Open the file, attach a buffered reader to it and box it to create
     // a MikumariReader:
 
-    let f = File::open(&fname)?;
-    let reader = BufReader::new(f);
-    let source = Box::new(reader);
+    let mut source : Box<dyn Read> = 
+    if fname == "-" {
+        let inf = stdin();
+        Box::new(inf)
+    } else {
+        let f = File::open(&fname)?;
+        let reader = BufReader::new(f);
+        Box::new(reader)
+    };
 
     let mut data_source = mikumari_format::MikumariReader::new(source);
     
-    // Open the output ring item file:
+    // Open the output ring item - or ring buffer.
 
-    let mut ring_file = File::create(ring_name).expect("Unable to create ring file");
+    let mut ring_file = data_sink_factory(&ring_name).expect("Unable to open data sink");   
 
     // Mikumari data has a partial frame at the front. We _could_
     // figure out how to timestamp it, but, instead, we'll just skip
@@ -67,7 +75,7 @@ fn skip_partial_frame(src : &mut mikumari_format::MikumariReader) ->
 //   the timestamp comes from the relative frame_no, but the first
 //   u64 bit item is the absolute frame number.
 //
-fn dump_data(src : &mut mikumari_format::MikumariReader, t0 : u64, rf : &mut File) {
+fn dump_data(src : &mut mikumari_format::MikumariReader, t0 : u64, rf : &mut Box<dyn DataSink>) {
     let mut frame_no = 0;                       // THe current frame number.
     let mut absolute_frame = t0;
 
@@ -90,8 +98,8 @@ fn dump_data(src : &mut mikumari_format::MikumariReader, t0 : u64, rf : &mut Fil
             mikumari_format::MikumariDatum::Heartbeat0(d) => {
                 // Heart beat means we write the item and 
                 // start a new one:
-
-                ring_item.write_item(rf).expect("Failed to write a ring item!!");
+                rf.write(&ring_item).expect("Failed to write a ring item to data sink.");
+            
                 frame_no += 1;                   // Next frame.
                 absolute_frame += 1;
                 // Start the new ring item:
@@ -109,7 +117,8 @@ fn dump_data(src : &mut mikumari_format::MikumariReader, t0 : u64, rf : &mut Fil
     }
     // Flush the last ring item out:
   
-    ring_item.write_item(rf).expect("Unable to flush the last ring item out");
+    rf.write(&ring_item).expect("Failed to write ring item to data sink.");
+    
 }
 // Figure out, given a frame number and frame relative time
 // the full 64 bit time of a hit.
@@ -126,4 +135,15 @@ fn compute_full_time(frame : u64, frame_time : u32) -> u64 {
 fn hb_frame_to_ts(frame: u64) -> f64 {
     let frame_t : f64 = frame as f64 * HEART_BEAT_MICROSECONDS; // frame_time in usec.
     (frame_t * (1.0e6)) / TDC_TICK_PS
+}
+
+fn usage() {
+    eprintln!("Usage:");
+    eprintln!("  mikumarimaker  source sink");
+    eprintln!("Where:");
+    eprintln!("   source - is a source of mikumaridata either a file or '-' for stdin");
+    eprintln!("    sink - is a data sink URI These are of the form:");
+    eprintln!("        * file:///absolute-file-path e.g. file:///`pwd`/somefile.evt");
+    eprintln!("        * file:///- for stdout");
+    eprintln!("        * tcp://localhost/somering to output to a ring buffer.");
 }
