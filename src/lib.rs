@@ -3,6 +3,7 @@
 //! 
 //! 
 pub mod mikumari_format {
+    pub const MIKUMARI_FRAME_ITEM_TYPE: u32=51;
     use std::io::Read;
     use std::io;
     // Data type values:

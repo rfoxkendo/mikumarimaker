@@ -8,7 +8,6 @@ use rust_ringitem_format::{RingItem};
 use frib_datasource::{data_sink_factory, DataSink};
 
 
-const MIKUMARI_FRAME_ITEM_TYPE: u32=51;
 const HEART_BEAT_MICROSECONDS : f64 = 524.288; // Time between heart beats.
 const TDC_TICK_PS : f64 = 0.9765625;           // LSB value for tdc.
 fn main() ->std::io::Result<()> {
@@ -82,7 +81,7 @@ fn dump_data(src : &mut mikumari_format::MikumariReader, t0 : u64, rf : &mut Box
     // start a ring item for the first frame:
 
     let mut ring_item = RingItem::new_with_body_header(
-        MIKUMARI_FRAME_ITEM_TYPE,
+        mikumari_format::MIKUMARI_FRAME_ITEM_TYPE,
         hb_frame_to_ts(frame_no) as u64,
         0, 0
      );
@@ -105,7 +104,7 @@ fn dump_data(src : &mut mikumari_format::MikumariReader, t0 : u64, rf : &mut Box
                 // Start the new ring item:
 
                 ring_item = RingItem::new_with_body_header(
-                    MIKUMARI_FRAME_ITEM_TYPE,
+                    mikumari_format::MIKUMARI_FRAME_ITEM_TYPE,
                     hb_frame_to_ts(frame_no) as u64,
                     0,0
                 );

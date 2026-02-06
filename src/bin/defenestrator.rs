@@ -55,44 +55,51 @@ fn  usage() -> ! {
 }
 
 fn convert_item(item : &RingItem, sink : &mut Box<dyn DataSink> ) {
-    let bh = item.get_bodyheader().unwrap();
-    let t0 = bh.timestamp;
-    let payload = item.payload();    // Vec<u8>
+    // if the ring item is not a MIKUMARI frame, just pass it unaltered.
+
+    if item.type_id() != mikumari_format::MIKUMARI_FRAME_ITEM_TYPE {
+        sink.write(item).expect("Unable to pass through a non-frame item.")
+    } else {
+        let bh = item.get_bodyheader().unwrap();
+        let t0 = bh.timestamp;
+        let payload = item.payload();    // Vec<u8>
 
 
-    let mut  output = RingItem::new_with_body_header(
-        PHYSICS_EVENT,
-        bh.timestamp, bh.source_id, bh.barrier_type
-    );
-    // We are assured there's an absolute frame number (64 bits)
-    // Payload includes the body header.
+        let mut  output = RingItem::new_with_body_header(
+            PHYSICS_EVENT,
+            bh.timestamp, bh.source_id, bh.barrier_type
+        );
+        // We are assured there's an absolute frame number (64 bits)
+        // Payload includes the body header.
 
-    let mut cursor = size_of::<u64>() + 2 * size_of::<u32>(); // skip body header.
-    let absolute_fno = u64::from_ne_bytes(payload[cursor..cursor+size_of::<u64>()].try_into().unwrap());
-    output.add(absolute_fno);
-    cursor += size_of::<u64>();   // First (if any) data item:
-    while cursor < payload.len() {
-        let raw = u64::from_ne_bytes(payload[cursor..cursor+size_of::<u64>()].try_into().unwrap());
-        
-        match mikumari_format::MikumariDatum::from_u64(raw) {
-            mikumari_format::MikumariDatum::LeadingEdge(le)  => {
-                let byte : u16 = le.channel() as u16;     // No top bit.
-                output.add(byte);
-                let t : u64 = le.Time() as u64 + t0;
-                output.add(t);
-            },
+        let mut cursor = size_of::<u64>() + 2 * size_of::<u32>(); // skip body header.
+        let absolute_fno = u64::from_ne_bytes(payload[cursor..cursor+size_of::<u64>()].try_into().unwrap());
+        output.add(absolute_fno);
+        cursor += size_of::<u64>();   // First (if any) data item:
+        while cursor < payload.len() {
+            let raw = u64::from_ne_bytes(payload[cursor..cursor+size_of::<u64>()].try_into().unwrap());
+            
+            match mikumari_format::MikumariDatum::from_u64(raw) {
+                mikumari_format::MikumariDatum::LeadingEdge(le)  => {
+                    let byte : u16 = le.channel() as u16;     // No top bit.
+                    output.add(byte);
+                    let t : u64 = le.Time() as u64 + t0;
+                    output.add(t);
+                },
 
-            mikumari_format::MikumariDatum::TrailingEdge(te) => {
-                let byte : u16 = te.channel() as u16 | 0x8000;     // Top bit for falling edge.
-                output.add(byte);
-                let t : u64 = te.Time() as u64 + t0;
-                output.add(t);
-            },
-            _ => {},
+                mikumari_format::MikumariDatum::TrailingEdge(te) => {
+                    let byte : u16 = te.channel() as u16 | 0x8000;     // Top bit for falling edge.
+                    output.add(byte);
+                    let t : u64 = te.Time() as u64 + t0;
+                    output.add(t);
+                },
+                _ => {},
+            }
+
+            cursor += size_of::<u64>();
         }
-
-        cursor += size_of::<u64>();
+        sink.write(&output).expect("Unable to write physics event ring item");
     }
-    sink.write(&output).expect("Unable to write physics event ring item");
-    
+    sink.flush();  
+        
 }
