@@ -33,20 +33,39 @@ The following are filtered out:
 Usage of the program:
 
 ```
-mikumarimaker infile outfile
+mikumarimaker [options] infile outuri
 ```
-
+* options control the begin/end run items that bracket the data.  See OPTIONS 
+below for what they are and the default values. 
 * infile is the path to the file that contains raw mikumari data.
-* outfile is the path to a file that will contain the resulting ring item frames.
+* outuri is the URI of the output this can be a file: or tcp://localhost/ring_name
+for online data.
 
-Note that future work might allow outfile to be a ringbuffer e.g.  ```file://outfile``` or
-```tcp:/localhost/ringname```
+
+#### OPTIONS
+
+The program accepts several command line options to control what goes in the begin run
+and end run items that bracket the data:
+
+| Long form |  Short form | Default | Meaning of value|
+|-----------|-------------|---------|-----------------|
+| --title   | -t          | ```"No title set"``` | Title string in begin and end run items |
+| --run     | -r          | ```0```       | Run number in begin and end run items |
+| --source-id | -s        | ```0```       | Source id put in body headers. |
+| --version | -v          | N/A     | outputs the program version and exits |
+| --help    | -h          | N/A     | outputs brief program usage help and exits |
+
+
 
 ### defenestrator
 
 Defenestration means to throw someone out a window.  In the context of FRIB/NSCLDAQ, it means to take windowed (frame files) and turn them into something 'else'.  For time data,
 the framing is sort of maintained, but the time data are transformed into a format that
 is no longer mikumari dependent.
+
+The program passes all ring items that are not Mikumari time frames
+(type 51) through without 
+modification.
 
 The program can accept data from an input file, stdin, or ringbuffer and write data to an output file or stdout.  Future work may allow this to send output to an online ringbuffer.
 
@@ -77,17 +96,20 @@ Note the absolute time is computed fromt he mikumari hit time and the timestamp 
 
 Usage:
 ```
-defenestrator source-uri output-file
+defenestrator source-uri out-uri
 ```
 
 Where:
 |  parameter | Meaning                    |
 |------------|----------------------------|
 | source-uri | Is a the data source URI as per standard FRIB/NSCLDAQ URI format |
-| output-file | is the path to the output ring item file ```-``` means stdout |
+| sink-uri | is a URI specifying either the file or or ring buffer to which data are written |
 
-Note that as with standard FRIB/NSCLDAQ data sources, _source-uri_ can be ```-```
-to indicate data should be taken from stdin.
+source and sink URIS  can have the form:
 
-Future developments will allow output-file to be an output-uri to allow data to go to an
-online ringbuffer.
+* file:///absolute-path-to-some-file for  file data.
+* tcp://hostname/ringname for ringbuffers. Note that output-uris must use ```localhost`` for the hostname
+*  file://- is a special path that for sourcde_uri's means stdin and for sink-uris stdout.
+
+
+
