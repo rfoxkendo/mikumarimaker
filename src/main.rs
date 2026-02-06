@@ -103,6 +103,7 @@ fn main() ->std::io::Result<()> {
         1, &title, Some(sid)
     );
     ring_file.write(&end_run.to_raw()).expect("Failed to write end run item to sink");
+    ring_file.flush();     // Probably not needed but what the heck.
     Ok(())
 }
 fn skip_partial_frame(src : &mut mikumari_format::MikumariReader) ->
