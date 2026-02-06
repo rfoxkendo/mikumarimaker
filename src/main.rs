@@ -7,17 +7,46 @@ use std::fs::File;
 use rust_ringitem_format::{RingItem};
 use frib_datasource::{data_sink_factory, DataSink};
 
+use clap::{arg, command, value_parser, Arg, ArgAction, Command, ArgMatches};
+
 
 const HEART_BEAT_MICROSECONDS : f64 = 524.288; // Time between heart beats.
 const TDC_TICK_PS : f64 = 0.9765625;           // LSB value for tdc.
+
+/// We're going to support the following optional uhm.. options.
+/// --title - a run title.
+/// --run   - a run number.
+/// --source-id -an event source id.
+///
+
 fn main() ->std::io::Result<()> {
-    let argv : Vec<String> = args().collect();
-    if argv.len() != 3 {
-        usage();
-        exit(-1);
-    }
-    let fname = argv[1].clone();
-    let ring_name = argv[2].clone();
+
+    let parser = Command::new("mikumarimaker")
+        .version("0.1.1")
+        .about("Make raw mikumari data into frame ring items")
+        .arg(Arg::new("title").short('t').long("title").action(ArgAction::Set)
+            .required(false).default_value("No title set")
+        ).arg(Arg::new("run").short('r').long("run").action(ArgAction::Set)
+            .required(false).default_value("0")
+            .value_parser(value_parser!(u32))
+        )
+        .arg(Arg::new("source-id").short('s').long("source-id").action(ArgAction::Set)
+            .required(false).default_value("0")
+            .value_parser(value_parser!(u32))
+        )
+        .arg(Arg::new("source").required(true).action(ArgAction::Set))
+        .arg(Arg::new("sink").required(true).action(ArgAction::Set));
+    let matches = parser.get_matches();
+
+    // Let's get the title, run number and source id given the arguments
+
+    let title = get_title(&matches);
+    let run_num = get_run(&matches);
+    let sid     = get_source_id(&matches);
+    
+    
+    let fname = matches.get_one::<String>("source").expect("Source filename is required").clone();
+    let ring_name = matches.get_one::<String>("sink").expect("Sink URI is required").clone();
 
     // Open the file, attach a buffered reader to it and box it to create
     // a MikumariReader:
@@ -127,13 +156,13 @@ fn hb_frame_to_ts(frame: u64) -> f64 {
     (frame_t * (1.0e6)) / TDC_TICK_PS
 }
 
-fn usage() {
-    eprintln!("Usage:");
-    eprintln!("  mikumarimaker  source sink");
-    eprintln!("Where:");
-    eprintln!("   source - is a source of mikumaridata either a file or '-' for stdin");
-    eprintln!("    sink - is a data sink URI These are of the form:");
-    eprintln!("        * file:///absolute-file-path e.g. file:///`pwd`/somefile.evt");
-    eprintln!("        * file:///- for stdout");
-    eprintln!("        * tcp://localhost/somering to output to a ring buffer.");
+fn get_title(parsed : &ArgMatches) -> String {
+    parsed.get_one::<String>("title").expect("there should have been a default title").clone()
+}
+fn get_run(parsed : &ArgMatches) -> u32 {
+    let result : u32 = *parsed.get_one::<u32>("run").expect("there should be a default run number");
+    result
+}
+fn get_source_id(parsed: &ArgMatches) -> u32 {
+    *parsed.get_one::<u32>("source-id").expect("There should be a default source-id")
 }
