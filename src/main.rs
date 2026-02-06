@@ -1,13 +1,14 @@
 use mikumarimaker::mikumari_format;
-use std::env::args;
 use std::process::exit;
 
 use std::io::{stdin, BufReader, Read};
 use std::fs::File;
-use rust_ringitem_format::{RingItem};
+use rust_ringitem_format::{RingItem, BodyHeader, ToRaw};
+use rust_ringitem_format::state_change::{StateChange, StateChangeType};  // begin run/end run.
 use frib_datasource::{data_sink_factory, DataSink};
 
-use clap::{arg, command, value_parser, Arg, ArgAction, Command, ArgMatches};
+use clap::{value_parser, Arg, ArgAction, Command, ArgMatches};
+use std::time;
 
 
 const HEART_BEAT_MICROSECONDS : f64 = 524.288; // Time between heart beats.
@@ -65,30 +66,53 @@ fn main() ->std::io::Result<()> {
     
     // Open the output ring item - or ring buffer.
 
-    let mut ring_file = data_sink_factory(&ring_name).expect("Unable to open data sink");   
+    let mut ring_file = data_sink_factory(&ring_name).expect("Unable to open data sink"); 
+
+    // Set up to encapsulate the run:
+
+    let begin_run_time = time::Instant::now();  // start time of the run.
+    let mut b       = BodyHeader {
+        timestamp: 0xffffffffffffffff,       // EVB assign timestamp.
+        source_id : sid,
+        barrier_type: 1                     // begin run barrier.
+    };
+    let begin_run = StateChange::new_with_body_header(
+        StateChangeType::Begin,
+        &b,
+        run_num, 0, 1, &title, Some(sid)
+    );
+    ring_file.write(&begin_run.to_raw()).expect("Failed to write begin run item to sink.");
 
     // Mikumari data has a partial frame at the front. We _could_
     // figure out how to timestamp it, but, instead, we'll just skip
     // that data as that seems to be standard.
 
     let hb = skip_partial_frame(&mut data_source);
-    println!("Found first hb: {}", hb.frame());
 
     let hb_t0 = hb.frame();        // our t0 frame.
     dump_data(&mut data_source, hb_t0, &mut ring_file);
 
+    // The end run item:
+
+    let elapsed = begin_run_time.elapsed();
+    b.barrier_type = 2;                          // end run barrier.
+    let end_run = StateChange::new_with_body_header(
+        StateChangeType::End,
+        &b,
+        run_num, elapsed.as_secs() as u32,
+        1, &title, Some(sid)
+    );
+    ring_file.write(&end_run.to_raw()).expect("Failed to write end run item to sink");
     Ok(())
 }
 fn skip_partial_frame(src : &mut mikumari_format::MikumariReader) ->
     mikumari_format::Delimeter1
 {
-    let mut n=0;                      // Count dropped values:
+    
     while let Ok(data) = src.read() {
         if let mikumari_format::MikumariDatum::Heartbeat0(d1) = data {
-            println!("Skipped {} u64 before finding a heartbeat", n);
             return d1;
         }
-        n += 1;
     }
     // We had an error before finding a heartbeat.
 
