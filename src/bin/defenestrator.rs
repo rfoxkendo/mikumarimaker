@@ -1,9 +1,11 @@
-use mikumarimaker::mikumari_format;
+use mikumarimaker::{mikumari_format, glom};
 use rust_ringitem_format::{RingItem, PHYSICS_EVENT};
 use frib_datasource::{data_source_factory, DataSource, data_sink_factory, DataSink};
-use std::env;
 use std::process::exit;
 use std::mem::size_of;
+use clap::{value_parser, Arg, ArgAction, Command, ArgMatches};
+
+
 // Ring items generated will  be PHYSICS_EVENT 
 // Output will be 
 // | Absolute frame number | 64 bits.
@@ -13,46 +15,49 @@ use std::mem::size_of;
 //
 //   If I've done arithmetic properly, it's 213 days before the absolute time should
 //   wrap.
-
+// Usage:
+//    defenestrator --dt coincidence-interval sourced sink.
+//
+// Source and sink are URI's --dt is in tdc units.
+//
 fn main() {
-    // We'll use two parameters:
-    // First is the ring datasource URI
-    // second the data sink object file. "-" for the data sink
-    // will mean stdout.
+    // Define the command line parameter for clap:
 
+    let parser = Command::new("defenestrator")
+        .version("0.2.0").about("Defenestrates mikumari time data (AMANEQ)")
+        .arg(Arg::new("dt")
+            .short('t').long("dt").required(true).help("Coincidence interval")
+            .value_parser(value_parser!(u64))
+        )
+        .arg(Arg::new("source").required(true).help("Data Source URI"))
+        .arg(Arg::new("sink").required(true).help("Data Sink URI"));
+
+    let matches = parser.get_matches();
+
+    
     // Process the command line arguments.
 
-    let argv : Vec<String> = env::args().collect();
-    if argv.len() != 3 {
-        usage();
-    }
-    let ring_uri = argv[1].clone();
-    let out_path = argv[2].clone();
+    let ring_uri = matches.get_one::<String>("source").expect("No data source given");
+    let out_path = matches.get_one::<String>("sink").expect("No data sink given");
+    let glom_dt = matches.get_one::<u64>("dt").expect("No --dt given for gloming");
 
     // open the source:
 
     let mut source = data_source_factory(&ring_uri).expect("Could not open ring item source");
     let mut sink   = data_sink_factory(&out_path).expect("Could not open ring item sink");
     
+    // Create the glommer:
+
+    let mut glom = glom::Glom::new(sink, 0, *glom_dt);
+
 
     // For mikumari data, each frame -> a defenestrated frame.
-    while let Some(item) = source.read() {
-        convert_item(&item, &mut sink);
-    }
+    //while let Some(item) = source.read() {
+    //    convert_item(&item, &mut sink);
+    //}
 
 }
 
-
-fn  usage() -> ! {
-    eprintln!("Usage:");
-    eprintln!("   defenestrator  in-uri out-file");
-    eprintln!("Where");
-    eprintln!("   in-uri is the URI of the data source '-' means stdin");
-    eprintln!("   out-uri is the URI for the output");
-    
-
-    exit(-1);
-}
 
 fn convert_item(item : &RingItem, sink : &mut Box<dyn DataSink> ) {
     // if the ring item is not a MIKUMARI frame, just pass it unaltered.

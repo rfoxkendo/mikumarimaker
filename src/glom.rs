@@ -74,6 +74,10 @@ impl Glom {
             hits : Vec::new()
         }
     }
+    /// Alter the sid...
+    pub fn set_sid(&mut self, sid:  u32) {
+        self.sid = sid;
+    }
     /// Sometimes we need to just output a ring item.
     /// Since we own the data sink, this allows that:
     ///
