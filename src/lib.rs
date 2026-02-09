@@ -2,10 +2,11 @@
 // Re publishing other crates:
 
 pub  mod glom;                               // Glom for defenestrator.
-//! Contains the formatting  stuff for mikumari data
-//! 
-//! 
-//! 
+
+/// Contains the formatting  stuff for mikumari data
+/// 
+/// 
+/// 
 pub mod mikumari_format {
     pub const MIKUMARI_FRAME_ITEM_TYPE: u32=51;
     use std::io::Read;
