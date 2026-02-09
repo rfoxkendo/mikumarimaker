@@ -26,7 +26,7 @@ pub struct Glom {
 
 impl Glom {
     // Start a new hit:
-    pub fn new_event(&mut self, chan : u16, time: u64) {
+    fn new_event(&mut self, chan : u16, time: u64) {
         self.t0 = Some(time);
         self.hits.push((chan, time));
     }
@@ -135,5 +135,104 @@ impl Glom {
                 }
             }
         }
+    }
+}
+
+/// Merges hits into a fully time ordered stream.
+/// The output of this can be inserted into a Glom
+/// to build events.
+///   The idea is that we feed a frame at a time into this and
+/// pull the hits out, feeding those to a Glom.
+pub struct Orderer {
+    num_chan : u16,               // Max index in hits.
+    merge_indices : Vec<usize>,   // Used during the merge process.
+    hits : Vec<Vec<(bool, u64)>>,  // Hits by channel.
+}
+impl Orderer {
+    // private functions:
+
+    // Find the first remaining hit given merge_indices.
+    // None is returned if the data are exhausted.
+    // Note that this is done very naievely.
+    fn first_hit(&mut self) ->  Option<(bool, u16, u64)> {
+        let mut min_chan : Option<u16> = None;
+        let mut min_time : u64 = 0xffffffffffffffff;
+
+        for ch in 0..self.merge_indices.len() {  // Index is important here 
+            if self.merge_indices[ch] < self.hits[ch].len() {  // still hits for that channel.
+                if self.hits[ch][self.merge_indices[ch]].1 < min_time {
+                    // Could be this one...
+
+                    min_chan = Some(ch as u16);
+                    min_time = self.hits[ch][self.merge_indices[ch]].1;
+                }
+            }
+        }
+        // If by the time we're done we have a min_chan there's something we need to
+        // adjust the appropriate merge_index...
+
+        if let Some(chan) = min_chan {
+            let index = self.merge_indices[chan as usize];
+            let c = chan as usize;
+            let result = Some((
+                self.hits[c][index].0, chan as u16,  self.hits[c][index].1
+            ));
+            
+            self.merge_indices[chan as usize] = index +1;
+            result
+        } else {
+            None
+        }
+    }
+    /// Make a new orderer
+    /// 
+    /// ### Parameters:
+    /// * nchan - number of channels from 0 - nchan-1.
+    /// 
+    /// ### Returns
+    /// Orderer object.
+    pub fn new(nchan : u16) -> Orderer {
+        let mut result = Orderer {
+            num_chan : nchan,
+            merge_indices : Vec::new(),
+            hits     : Vec::new()
+        };
+        result.merge_indices.resize(nchan as usize, 0);   
+        result.hits.resize(nchan as usize, Vec::new());        // Size the hits vector.
+        result
+    }
+    /// Add a hit to the data to merge.
+    /// 
+    /// ### Parameters:
+    /// * rising - true if this is a rising edge hit.
+    /// * chan   - chanel number - determines which vec it goes into
+    /// * time   - time of the hit.
+    pub fn add_hit(&mut self, rising : bool, chan : u16, time : u64) {
+        if self.hits.len() < chan as usize {
+            self.hits[chan as usize].push((rising, time));
+        }  else {
+            panic!("*BUG* Orderer given a channel number out of range.");
+        }
+    }
+    /// merge the data assuming each channnel vector is orderered.
+    /// what is output is a vector of hits.
+    /// 
+    /// ### Returns:
+    /// 
+    /// Vec<(bool, nchan, time)> where the bool is which edge.
+    /// 
+    pub fn merge(&mut self) -> Vec<(bool, u16, u64)> {
+        let mut result = Vec::new();
+        while let Some(hit) = self.first_hit() {
+            result.push(hit);
+        }
+        // Clear for the next round:
+
+        for hits in &mut self.hits {
+            hits.clear();
+        }
+        self.merge_indices.clear();
+        self.merge_indices.resize(self.num_chan as usize, 0);
+        result
     }
 }
