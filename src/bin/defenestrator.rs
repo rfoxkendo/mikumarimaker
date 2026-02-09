@@ -1,5 +1,5 @@
 use mikumarimaker::{mikumari_format, glom};
-use rust_ringitem_format::{RingItem, PHYSICS_EVENT};
+use rust_ringitem_format::{RingItem, BEGIN_RUN, END_RUN};
 use frib_datasource::{data_source_factory, DataSource, data_sink_factory, DataSink};
 use std::process::exit;
 use std::mem::size_of;
@@ -29,6 +29,10 @@ fn main() {
             .short('t').long("dt").required(true).help("Coincidence interval")
             .value_parser(value_parser!(u64))
         )
+        .arg(Arg::new("chans")
+            .short('c').long("chans").required(true).help("Maximum channel # used")
+            .value_parser(value_parser!(u16))
+        )
         .arg(Arg::new("source").required(true).help("Data Source URI"))
         .arg(Arg::new("sink").required(true).help("Data Sink URI"));
 
@@ -40,16 +44,22 @@ fn main() {
     let ring_uri = matches.get_one::<String>("source").expect("No data source given");
     let out_path = matches.get_one::<String>("sink").expect("No data sink given");
     let glom_dt = matches.get_one::<u64>("dt").expect("No --dt given for gloming");
+    let max_chan_no = matches.get_one::<u16>("chans").expect("no --chans given");
 
     // open the source:
 
     let mut source = data_source_factory(&ring_uri).expect("Could not open ring item source");
-    let mut sink   = data_sink_factory(&out_path).expect("Could not open ring item sink");
+    let sink   = data_sink_factory(&out_path).expect("Could not open ring item sink");
     
     // Create the glommer:
 
     let mut glom = glom::Glom::new(sink, 0, *glom_dt);
 
+    // Process the items.
+
+    while let Some(item) = source.read() {
+        convert_item(&item, &mut glom);
+    }
 
     // For mikumari data, each frame -> a defenestrated frame.
     //while let Some(item) = source.read() {
@@ -59,52 +69,58 @@ fn main() {
 }
 
 
-fn convert_item(item : &RingItem, sink : &mut Box<dyn DataSink> ) {
+fn convert_item(item : &RingItem, glom  : &mut glom::Glom ) {
     // if the ring item is not a MIKUMARI frame, just pass it unaltered.
 
-    if item.type_id() != mikumari_format::MIKUMARI_FRAME_ITEM_TYPE {
-        sink.write(item).expect("Unable to pass through a non-frame item.")
+    let item_type = item.type_id();
+    if item_type != mikumari_format::MIKUMARI_FRAME_ITEM_TYPE {
+        // some are special:
+
+        
+        if item_type == BEGIN_RUN {
+            // Set the source id from the ring item.
+
+            if let Some(bh) = item.get_bodyheader() {
+                glom.set_sid(bh.source_id);
+            }
+
+        } else if item_type == END_RUN {     // Flush event being built at end run.
+            glom.flush();
+        }
+        glom.write_item(item)
+
     } else {
         let bh = item.get_bodyheader().unwrap();
         let t0 = bh.timestamp;
         let payload = item.payload();    // Vec<u8>
 
-
-        let mut  output = RingItem::new_with_body_header(
-            PHYSICS_EVENT,
-            bh.timestamp, bh.source_id, bh.barrier_type
-        );
+        
         // We are assured there's an absolute frame number (64 bits)
         // Payload includes the body header.
 
         let mut cursor = size_of::<u64>() + 2 * size_of::<u32>(); // skip body header.
         let absolute_fno = u64::from_ne_bytes(payload[cursor..cursor+size_of::<u64>()].try_into().unwrap());
-        output.add(absolute_fno);
+        glom.add_frame_boundary(absolute_fno);
+
         cursor += size_of::<u64>();   // First (if any) data item:
         while cursor < payload.len() {
             let raw = u64::from_ne_bytes(payload[cursor..cursor+size_of::<u64>()].try_into().unwrap());
             
             match mikumari_format::MikumariDatum::from_u64(raw) {
                 mikumari_format::MikumariDatum::LeadingEdge(le)  => {
-                    let byte : u16 = le.channel() as u16;     // No top bit.
-                    output.add(byte);
                     let t : u64 = le.Time() as u64 + t0;
-                    output.add(t);
+                    glom.add_hit(true, le.channel(), t);
+                    
                 },
-
                 mikumari_format::MikumariDatum::TrailingEdge(te) => {
-                    let byte : u16 = te.channel() as u16 | 0x8000;     // Top bit for falling edge.
-                    output.add(byte);
                     let t : u64 = te.Time() as u64 + t0;
-                    output.add(t);
+                    glom.add_hit(false, te.channel(), t);
                 },
                 _ => {},
             }
 
             cursor += size_of::<u64>();
         }
-        sink.write(&output).expect("Unable to write physics event ring item");
     }
-    sink.flush();  
         
 }
