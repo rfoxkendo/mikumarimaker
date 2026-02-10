@@ -27,10 +27,12 @@ fn main() {
         .version("0.2.0").about("Defenestrates mikumari time data (AMANEQ)")
         .arg(Arg::new("dt")
             .short('t').long("dt").required(true).help("Coincidence interval")
+            .action(ArgAction::Set)
             .value_parser(value_parser!(u64))
         )
         .arg(Arg::new("chans")
             .short('c').long("chans").required(true).help("Maximum channel # used")
+            .action(ArgAction::Set)
             .value_parser(value_parser!(u16))
         )
         .arg(Arg::new("source").required(true).help("Data Source URI"))
@@ -58,7 +60,7 @@ fn main() {
     // Process the items.
 
     while let Some(item) = source.read() {
-        convert_item(&item, &mut glom);
+        convert_item(&item, &mut glom, *max_chan_no);
     }
 
     // For mikumari data, each frame -> a defenestrated frame.
@@ -69,7 +71,7 @@ fn main() {
 }
 
 
-fn convert_item(item : &RingItem, glom  : &mut glom::Glom ) {
+fn convert_item(item : &RingItem, glom  : &mut glom::Glom, chans : u16 ) {
     // if the ring item is not a MIKUMARI frame, just pass it unaltered.
 
     let item_type = item.type_id();
@@ -90,6 +92,7 @@ fn convert_item(item : &RingItem, glom  : &mut glom::Glom ) {
         glom.write_item(item)
 
     } else {
+
         let bh = item.get_bodyheader().unwrap();
         let t0 = bh.timestamp;
         let payload = item.payload();    // Vec<u8>
@@ -102,6 +105,10 @@ fn convert_item(item : &RingItem, glom  : &mut glom::Glom ) {
         let absolute_fno = u64::from_ne_bytes(payload[cursor..cursor+size_of::<u64>()].try_into().unwrap());
         glom.add_frame_boundary(absolute_fno);
 
+        // Sort the hits and add them to the glommer:
+
+        let mut orderer = glom::Orderer::new(chans);  // last channel not num
+
         cursor += size_of::<u64>();   // First (if any) data item:
         while cursor < payload.len() {
             let raw = u64::from_ne_bytes(payload[cursor..cursor+size_of::<u64>()].try_into().unwrap());
@@ -109,17 +116,24 @@ fn convert_item(item : &RingItem, glom  : &mut glom::Glom ) {
             match mikumari_format::MikumariDatum::from_u64(raw) {
                 mikumari_format::MikumariDatum::LeadingEdge(le)  => {
                     let t : u64 = le.Time() as u64 + t0;
-                    glom.add_hit(true, le.channel(), t);
+                    orderer.add_hit(true, le.channel() as u16, t);
                     
                 },
                 mikumari_format::MikumariDatum::TrailingEdge(te) => {
                     let t : u64 = te.Time() as u64 + t0;
-                    glom.add_hit(false, te.channel(), t);
+                    orderer.add_hit(false, te.channel() as u16, t);
                 },
                 _ => {},
             }
 
             cursor += size_of::<u64>();
+        }
+        // Get hits from the orderer and put them in glom
+        // which will merge into events:
+
+        let merged_hits = orderer.merge();
+        for (rising, chan, time) in &merged_hits {
+            glom.add_hit(*rising, *chan as u8, *time);
         }
     }
         

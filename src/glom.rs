@@ -208,7 +208,8 @@ impl Orderer {
     /// * chan   - chanel number - determines which vec it goes into
     /// * time   - time of the hit.
     pub fn add_hit(&mut self, rising : bool, chan : u16, time : u64) {
-        if self.hits.len() < chan as usize {
+        
+        if self.hits.len() > chan as usize {
             self.hits[chan as usize].push((rising, time));
         }  else {
             panic!("*BUG* Orderer given a channel number out of range.");
