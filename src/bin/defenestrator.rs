@@ -89,6 +89,7 @@ fn convert_item(item : &RingItem, glom  : &mut glom::Glom) {
         let bh = item.get_bodyheader().unwrap();
         let t0 = bh.timestamp;
         let payload = item.payload();    // Vec<u8>
+        glom.set_sid(bh.source_id);      // In case there's no BEGIN e.g.
 
         
         // We are assured there's an absolute frame number (64 bits)
