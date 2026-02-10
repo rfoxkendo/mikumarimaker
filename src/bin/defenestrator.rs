@@ -1,9 +1,8 @@
 use mikumarimaker::{mikumari_format, glom};
 use rust_ringitem_format::{RingItem, BEGIN_RUN, END_RUN};
-use frib_datasource::{data_source_factory, DataSource, data_sink_factory, DataSink};
-use std::process::exit;
+use frib_datasource::{data_source_factory,  data_sink_factory};
 use std::mem::size_of;
-use clap::{value_parser, Arg, ArgAction, Command, ArgMatches};
+use clap::{value_parser, Arg, ArgAction, Command};
 
 
 // Ring items generated will  be PHYSICS_EVENT 
@@ -30,11 +29,6 @@ fn main() {
             .action(ArgAction::Set)
             .value_parser(value_parser!(u64))
         )
-        .arg(Arg::new("chans")
-            .short('c').long("chans").required(true).help("Maximum channel # used")
-            .action(ArgAction::Set)
-            .value_parser(value_parser!(u16))
-        )
         .arg(Arg::new("source").required(true).help("Data Source URI"))
         .arg(Arg::new("sink").required(true).help("Data Sink URI"));
 
@@ -46,7 +40,6 @@ fn main() {
     let ring_uri = matches.get_one::<String>("source").expect("No data source given");
     let out_path = matches.get_one::<String>("sink").expect("No data sink given");
     let glom_dt = matches.get_one::<u64>("dt").expect("No --dt given for gloming");
-    let max_chan_no = matches.get_one::<u16>("chans").expect("no --chans given");
 
     // open the source:
 
@@ -60,7 +53,7 @@ fn main() {
     // Process the items.
 
     while let Some(item) = source.read() {
-        convert_item(&item, &mut glom, *max_chan_no);
+        convert_item(&item, &mut glom);
     }
 
     // For mikumari data, each frame -> a defenestrated frame.
@@ -71,7 +64,7 @@ fn main() {
 }
 
 
-fn convert_item(item : &RingItem, glom  : &mut glom::Glom, chans : u16 ) {
+fn convert_item(item : &RingItem, glom  : &mut glom::Glom) {
     // if the ring item is not a MIKUMARI frame, just pass it unaltered.
 
     let item_type = item.type_id();
@@ -96,6 +89,7 @@ fn convert_item(item : &RingItem, glom  : &mut glom::Glom, chans : u16 ) {
         let bh = item.get_bodyheader().unwrap();
         let t0 = bh.timestamp;
         let payload = item.payload();    // Vec<u8>
+        glom.set_sid(bh.source_id);      // In case there's no BEGIN e.g.
 
         
         // We are assured there's an absolute frame number (64 bits)
@@ -107,7 +101,7 @@ fn convert_item(item : &RingItem, glom  : &mut glom::Glom, chans : u16 ) {
 
         // Sort the hits and add them to the glommer:
 
-        let mut orderer = glom::Orderer::new(chans);  // last channel not num
+        let mut orderer = glom::Orderer::new();  // last channel not num
 
         cursor += size_of::<u64>();   // First (if any) data item:
         while cursor < payload.len() {
@@ -131,7 +125,7 @@ fn convert_item(item : &RingItem, glom  : &mut glom::Glom, chans : u16 ) {
         // Get hits from the orderer and put them in glom
         // which will merge into events:
 
-        let merged_hits = orderer.merge();
+        let merged_hits = orderer.order();
         for (rising, chan, time) in &merged_hits {
             glom.add_hit(*rising, *chan as u8, *time);
         }
