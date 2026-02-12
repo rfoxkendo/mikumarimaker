@@ -56,6 +56,7 @@ fn main() {
         convert_item(&item, &mut glom);
     }
 
+
     // For mikumari data, each frame -> a defenestrated frame.
     //while let Some(item) = source.read() {
     //    convert_item(&item, &mut sink);
@@ -110,14 +111,14 @@ fn convert_item(item : &RingItem, glom  : &mut glom::Glom) {
             match mikumari_format::MikumariDatum::from_u64(raw) {
                 mikumari_format::MikumariDatum::LeadingEdge(le)  => {
                     let t : u64 = le.Time() as u64 + t0;
-                    orderer.add_hit(true, le.channel() as u16, t);
+                    orderer.add_hit(true, le.channel() as u16, t, le.TOT());
                     
                 },
                 mikumari_format::MikumariDatum::TrailingEdge(te) => {
                     let t : u64 = te.Time() as u64 + t0;
-                    orderer.add_hit(false, te.channel() as u16, t);
+                    orderer.add_hit(false, te.channel() as u16, t, te.TOT());
                 },
-                _ => {},
+                _ => {},              // ANything else is not passed through.
             }
 
             cursor += size_of::<u64>();
@@ -126,9 +127,14 @@ fn convert_item(item : &RingItem, glom  : &mut glom::Glom) {
         // which will merge into events:
 
         let merged_hits = orderer.order();
-        for (rising, chan, time) in &merged_hits {
-            glom.add_hit(*rising, *chan as u8, *time);
+        for (rising, chan, time, tot) in &merged_hits {
+            glom.add_hit(*rising, *chan as u8, *time, *tot);
         }
+
+        // In case there's on end run:
+
+        glom.flush();
+        
     }
         
 }

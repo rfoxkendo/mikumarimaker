@@ -85,13 +85,14 @@ interval.  Each event will have a timestamp derived from the first hit in the ev
 |-----------------|----------|-----------|
 | channel and edge| uint16_t | The top bit is set for falling edge, the remainder of the word is the channel number.
 | Absolute time   | uint64_t | Time of the hit relative to the start of the run. |
+| TOT             | uint32_t | Time over threshold |
 
-
-Frame boundaries are shown by a hit with the channel and edge field set to 0xffff.  The "_time_" of that hit is the absolute frame number. For example:
+Frame boundaries are shown by a hit with the channel and edge field, and TOT set to 0xffff.  The "_time_" of that hit is the absolute frame number. For example:
 
 ```
 0xffff
 0x0000000000001000
+0xffff
 ```
 
 is a frame boundary with the absolute frame number 4096.  Note that the data are little endian so for this example in 16bit words in the dumper will be in the following order:
@@ -102,6 +103,7 @@ is a frame boundary with the absolute frame number 4096.  Note that the data are
 0x0000  /   of the frame number
 0x0000  \   Most significant 32  bits
 0x0000  /   of the frame number.
+0xffff  -   fake time over threshold field.
 ```
 
 Note the absolute times of actual hits are computed from the mikumari hit time and the timestamp of the input ring item that contained them (see mikumarimaker).  It will roll over after over 200 days and the LSB as for the ring item timestamp is 0.9765625pico-seconds.
