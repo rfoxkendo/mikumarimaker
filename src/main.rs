@@ -143,10 +143,10 @@ fn dump_data(src : &mut mikumari_format::MikumariReader, t0 : u64, rf : &mut Box
     while let Ok(data) = src.read() {
         match data {
             mikumari_format::MikumariDatum::LeadingEdge(le) => {
-                ring_item.add(le.get());
+                ring_item.add(le.get());  // ISsue #11 Already includes the TOT field.
             },
             mikumari_format::MikumariDatum::TrailingEdge(te) => {
-                ring_item.add(te.get());
+                ring_item.add(te.get());  // ISsue #11 Already includes the TOT field.
             }
             mikumari_format::MikumariDatum::Heartbeat0(_d) => {
                 // Heart beat means we write the item and 

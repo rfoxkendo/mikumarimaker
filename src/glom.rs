@@ -21,14 +21,14 @@ pub struct Glom {
     sid  : u32,                     // Source id.
     dt   : u64,                     // coincidence interval.
     t0   : Option<u64>,             // when some, the start time of the glom.
-    hits : Vec<(u16,u64)>,          // Hits accumulated so far.
+    hits : Vec<(u16, u64, u32)>,    // Hits accumulated so far. Issue #11 add TOT.
 }
 
 impl Glom {
     // Start a new hit:
-    fn new_event(&mut self, chan : u16, time: u64) {
+    fn new_event(&mut self, chan : u16, time: u64, tot: u32) {
         self.t0 = Some(time);
-        self.hits.push((chan, time));
+        self.hits.push((chan, time, tot));
     }
     /// Flush the frame as a ring item. 
     /// Note that this is a no-op if t0 is None (e.g. maybe at end of run?).
@@ -43,9 +43,10 @@ impl Glom {
                 stamp, self.sid, 0
             );
             // Fill the body with hits:
-            for (ch, t) in &self.hits {
+            for (ch, t, tot) in &self.hits {
                 item.add(*ch);
                 item.add(*t);
+                item.add(*tot);              // Issue #11
             }
             self.sink.write(&item).expect("Unable to write a ring item");
             self.sink.flush();
@@ -101,7 +102,7 @@ impl Glom {
     /// * fno - absolute frame number.
     /// 
     pub fn add_frame_boundary(&mut self,fno : u64) {
-        self.hits.push((0xffff, fno));
+        self.hits.push((0xffff, fno, 0xffffffff));   // issue #11
     }
     ///
     /// Add a hit.  We construct the channel number word from the channel number
@@ -115,8 +116,9 @@ impl Glom {
     /// * leading - true if this is a leading edge hit.
     /// * channel - The channel number.
     /// * time    - The absolute time of the hit.
+    /// * tot     - Time over threshold.
     /// 
-    pub fn add_hit(&mut self, leading : bool, channel : u8, time : u64) {
+    pub fn add_hit(&mut self, leading : bool, channel : u8, time : u64, tot : u32) {
         // Construct the u16 channel/edge tag.
 
         let chanword : u16 = if leading {
@@ -125,13 +127,13 @@ impl Glom {
             channel as u16 | 0x8000
         };
         match self.t0 {
-            None => self.new_event(chanword, time),
+            None => self.new_event(chanword, time, tot),
             Some(t0) => {
                 if time - t0 <= self.dt {
-                    self.hits.push((chanword, time));
+                    self.hits.push((chanword, time, tot));
                 } else {
                     self.flush();
-                    self.new_event(chanword, time);
+                    self.new_event(chanword, time, tot);
                 }
             }
         }
@@ -144,7 +146,7 @@ impl Glom {
 ///   The idea is that we feed a frame at a time into this and
 /// pull the hits out, feeding those to a Glom.
 pub struct Orderer {
-    hits : Vec<(bool, u16, u64)>,  // Soup of hits.
+    hits : Vec<(bool, u16, u64, u32)>,  // Soup of hits.
 }
 impl Orderer {
     /// Create a new orderer.
@@ -159,18 +161,19 @@ impl Orderer {
     /// *  rising - true if this hit is a rising edge.
     /// *  chan   - channel number of the hit.
     /// *  time   - Time at which the hit happened (sort key).
-    pub fn add_hit(&mut self, rising : bool, chan : u16, time : u64) {
-        self.hits.push((rising, chan, time));
+    /// *  tot    - Time over threshold.
+    pub fn add_hit(&mut self, rising : bool, chan : u16, time : u64, tot : u32) {
+        self.hits.push((rising, chan, time, tot));
     }
     /// Return  the ordered hits and clear the accumulated array:
     /// 
     /// ### Returns:
-    /// Vec<(bool, u16, u64)> - rising flag, channel, time.
+    /// Vec<(bool, u16, u64, u32)> - rising flag, channel, time.
     /// 
     /// ### Notes:
     /// *   The hits are ordered using sort_unstable_by_key.
     /// *   The hits array is cleared after it is cloned for return:
-    pub fn order(&mut self) -> Vec<(bool, u16, u64)> {
+    pub fn order(&mut self) -> Vec<(bool, u16, u64, u32)> {
         self.hits.sort_unstable_by_key(|k| k.2);
         let result = self.hits.clone();
         self.hits.clear();
