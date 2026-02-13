@@ -180,3 +180,91 @@ impl Orderer {
         result
     }
 }
+#[cfg(test)]
+mod orderer_tests {
+    use super::*;
+    use rand::{RngExt, rng};
+    #[test]
+    fn construct_1() {
+        let o = Orderer::new();
+        assert!(o.hits.is_empty());
+    }
+    #[test]
+    fn order_1() {
+        // No hits gives an empty orderer:
+
+        let mut o = Orderer::new();
+        let order = o.order();
+        assert!(order.is_empty());
+    }
+    #[test]
+    fn hit_1() {
+        // I can add a hit and it's there.
+
+        let mut o = Orderer::new();
+        o.add_hit(true, 1, 12345, 666);
+        assert_eq!(o.hits.len(), 1);      // there is a hit.
+
+        assert_eq!(o.hits[0], (true, 1, 12345, 666));
+    }
+    #[test]
+    fn order_2() {
+        // If I add one hit and order it it'll come out unscathed.
+
+        let mut o = Orderer::new();
+        o.add_hit(true, 1, 12345, 666);
+        let ordered = o.order();
+        assert_eq!(ordered.len(), 1);
+        assert_eq!(ordered[0], (true, 1, 12345, 666));
+    }
+    #[test]
+    fn order_3() {
+        // Adding some ordered hits they come out with the same order
+        // they were put in.
+
+        let mut o = Orderer::new();
+        for i  in 0..10 {
+            o.add_hit(true, i as u16 % 2 , i as u64, 666);
+        }
+        let ordered = o.order();
+        assert_eq!(ordered.len(), 10);
+
+        for i in 0..10 {
+            assert_eq!(ordered[i], (true, i as u16 % 2, i as u64, 666));
+        }
+    }
+    #[test]
+    fn order_4() {
+        // Fully backwards times are properly ordered.
+        let mut o = Orderer::new();
+        for i  in 0..10 {
+            o.add_hit(true, i as u16 % 2 , (9-i) as u64, 666);
+        }
+        println!("{:?}", o.hits);
+        let ordered = o.order();
+        assert_eq!(ordered.len(), 10);
+        println!("{:?}", ordered);
+        for i in 0..10 {
+            assert_eq!(ordered[i].2,  i as u64);
+        }
+    }
+    #[test]
+    fn order_5() {
+        // put a few random hit times in...they come out ordered.
+
+        let mut o = Orderer::new();
+        let mut times : Vec<u64> = Vec::new();   // Store generated times here.
+        let mut r = rand::rng();
+        for i in 0..50 {
+            let t : u64 = r.random();
+            times.push(t);
+            o.add_hit(true, 0, t, 666);
+        }
+        times.sort();
+        let ordered = o.order();
+        assert_eq!(ordered.len(), 50);
+        for i in 0..50 {
+            assert_eq!(ordered[i].2, times[i]);
+        }
+    }
+}

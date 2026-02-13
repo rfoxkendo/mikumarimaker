@@ -10,3 +10,6 @@ name = "defenestrator"
 rust_ringitem_format = "0.1.2"
 frib_datasource = "0.3.0"
 clap = "4.5.58"
+
+[dev-dependencies]
+rand = "0.10.0"
