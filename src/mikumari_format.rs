@@ -268,7 +268,7 @@ mod hrtdc {
 
         // See that the fields got properly set as well as the type:
 
-        assert_eq!(leading.leading >>58, TDC_LeadingData as u64);
+        assert_eq!(leading.leading >>58, TDC_LEADING_DATA as u64);
         assert_eq!(leading.leading & 0x1fffffff, 12345);
         assert_eq!((leading.leading >> 29) & 0x3fffff, 100);
     }
@@ -296,7 +296,7 @@ mod hrtdc {
 
         // See that the fields got properly set as well as the type:
 
-        assert_eq!(trailing.trailing >>58, TDC_TrailingData as u64);
+        assert_eq!(trailing.trailing >>58, TDC_TRAILING_DATA as u64);
         assert_eq!(trailing.trailing & 0x1fffffff, 12345);
         assert_eq!((trailing.trailing >> 29) & 0x3fffff, 100);
     }
