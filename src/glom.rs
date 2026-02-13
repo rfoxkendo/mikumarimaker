@@ -142,8 +142,10 @@ impl Glom {
 #[cfg(test)]
 mod glom_tests {
     use super::*;
+    use std::any::Any;
 
     // Here's a struct that implements a data sink for our tests. It just copies the ring item.
+
     struct TestSink {
         item : Option<RingItem>
     }
@@ -154,7 +156,7 @@ mod glom_tests {
             let mut body_offset = 0;
             let mut new_item = if item.has_body_header() {
                 let bh = item.get_bodyheader().unwrap();
-                body_offset = size_of::<u32>()*3;      // Payload has the body header.
+                body_offset = size_of::<u32>()*2 + size_of::<u64>();      // Payload has the body header.
                 RingItem::new_with_body_header(item.type_id(), bh.timestamp, bh.source_id, bh.barrier_type)
             } else {
                 RingItem::new(item.type_id())
@@ -169,8 +171,8 @@ mod glom_tests {
 
             Ok(())
         }
-        fn close(&mut self) {self.item = None;}
-        fn flush(&mut self) {self.item = None;}
+        fn close(&mut self) {}
+        fn flush(&mut self) {}
     }
 
     #[test]
@@ -181,6 +183,52 @@ mod glom_tests {
         assert_eq!(glom.dt, 100);
         assert!(glom.t0.is_none());
         assert!(glom.hits.is_empty());
+    }
+    #[test]
+    fn set_sid_1() {
+        // Can change the source id:
+
+        let sink = TestSink {item: None};
+        let mut glom = Glom::new(Box::new(sink), 1, 100);
+        glom.set_sid(2);
+        assert_eq!(glom.sid, 2);
+    }
+    #[test]
+    fn write_item_1() {
+        // Can do pass through on an item.
+
+        let sink = Box::new(TestSink {item: None});
+        let p    = Box::into_raw(sink);
+        let rsink = unsafe {&*p};
+        let x = unsafe { Box::from_raw(p)};
+        
+        let mut glom = Glom::new(x, 1, 100);
+        let mut item = RingItem::new_with_body_header(
+            PHYSICS_EVENT,
+            100, 2, 0
+        );
+        for i in 0..10 {
+            let b : u8 = i;
+            item.add(b);
+        }
+        glom.write_item(&item);
+        
+        assert!(rsink.item.is_some());
+        let item = rsink.item.as_ref().unwrap();
+        assert_eq!(item.type_id(), PHYSICS_EVENT);
+        assert!(item.has_body_header());
+        let bh = item.get_bodyheader().unwrap();
+        assert_eq!(bh.timestamp, 100);
+        assert_eq!(bh.source_id, 2);
+        assert_eq!(bh.barrier_type, 0);
+
+        let bytes = item.payload();
+        let mut v = 0;
+        for i in 2*size_of::<u32>()+size_of::<u64>()..bytes.len() {
+            assert_eq!(bytes[i], v);
+            v += 1;
+        }
+        
     }
 
 }
@@ -227,7 +275,7 @@ impl Orderer {
 #[cfg(test)]
 mod orderer_tests {
     use super::*;
-    use rand::{RngExt, rng};
+    use rand::{RngExt};
     #[test]
     fn construct_1() {
         let o = Orderer::new();
