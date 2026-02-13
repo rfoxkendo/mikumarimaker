@@ -3,6 +3,9 @@ name = "mikumarimaker"
 version = "0.2.0"
 edition = "2024"
 
+[[bin]]
+name = "defenestrator"
+
 [dependencies]
 rust_ringitem_format = "0.1.2"
 frib_datasource = "0.3.0"
