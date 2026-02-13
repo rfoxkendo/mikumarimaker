@@ -139,7 +139,51 @@ impl Glom {
         }
     }
 }
+#[cfg(test)]
+mod glom_tests {
+    use super::*;
 
+    // Here's a struct that implements a data sink for our tests. It just copies the ring item.
+    struct TestSink {
+        item : Option<RingItem>
+    }
+    impl DataSink for TestSink {
+        fn open(&mut self, _uri: &str) -> Result<(), String> {Ok(())}
+        fn write(&mut self, item : &RingItem) ->Result<(), String> {
+            // sure wish I'd implemented ring ittem clone but I didn't so:
+            let mut body_offset = 0;
+            let mut new_item = if item.has_body_header() {
+                let bh = item.get_bodyheader().unwrap();
+                body_offset = size_of::<u32>()*3;      // Payload has the body header.
+                RingItem::new_with_body_header(item.type_id(), bh.timestamp, bh.source_id, bh.barrier_type)
+            } else {
+                RingItem::new(item.type_id())
+            };
+            // put the body in:
+            
+            let p = item.payload();
+            for i in body_offset..p.len() {
+                new_item.add(p[i]);
+            }
+            self.item  = Some(new_item);
+
+            Ok(())
+        }
+        fn close(&mut self) {self.item = None;}
+        fn flush(&mut self) {self.item = None;}
+    }
+
+    #[test]
+    fn new_1() {
+        let sink = TestSink {item: None};
+        let glom = Glom::new(Box::new(sink), 1, 100);
+        assert_eq!(glom.sid, 1);
+        assert_eq!(glom.dt, 100);
+        assert!(glom.t0.is_none());
+        assert!(glom.hits.is_empty());
+    }
+
+}
 /// Merges hits into a fully time ordered stream.
 /// The output of this can be inserted into a Glom
 /// to build events.
@@ -255,7 +299,7 @@ mod orderer_tests {
         let mut o = Orderer::new();
         let mut times : Vec<u64> = Vec::new();   // Store generated times here.
         let mut r = rand::rng();
-        for i in 0..50 {
+        for _ in 0..50 {
             let t : u64 = r.random();
             times.push(t);
             o.add_hit(true, 0, t, 666);
