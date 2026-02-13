@@ -1,3 +1,35 @@
+# What's here:
+
+This repository is prototypical code to handle the Mikumari time synchronized system with HRTDC daughterboards.
+The work closely follows the brainstorming meeting the FRIBDAQ group did at the beginning of 2026.  
+
+## Building the code:
+
+You will need the Rust language toolchain.  At the FRIB, in our containers you can make that toolchain visibible by:
+```bash
+export PATH=/usr/cargo/bin:$PATH
+```
+
+Clone this repository or grab a release version of the repository and
+make your current working directory the top level directory of the repository.
+
+To build for development/debugging:
+
+```bash
+cargo build
+```
+
+The executables, mikumarimaker and defenestrator will be created in ```target/debug```.
+
+To build for production:
+```bash
+cargo build --release
+```
+
+the executables, mikumarimaker and defenestrator will be created in ```target/release```.
+
+From there you can install them anywhere you want or just run them from those directories.
+
 ## Products of this repository:
 
 Two binaries here:
@@ -78,7 +110,7 @@ The output of this program are a sequence of ring items.
 *  A special hit channel identifies where frame boundaries are.
 
 The defenestrator outputs what it thinks are events given a coincidence
-interval.  Each event will have a timestamp derived from the first hit in the event.  Hits consist of a 16 bit channel/edge word followed by a 64 bit absolute time word:
+interval.  Each event will have a timestamp derived from the first hit in the event.  Hits consist of a 16 bit channel/edge word followed by a 64 bit absolute time word followed by a 32 bit time over threshold:
 
 
 |  Contents       | Size     | Notes     |
@@ -134,3 +166,118 @@ source and sink URIS  can have the form:
 
 
 
+#### Sample SpecTcl Code.
+
+For data taken during the test runs, I have made a SpecTcl event processor for the scintillator data.  These data contain hits from two channels.  A north and Sourth PM on the scintillator.  The event processor produces time differencdes wtihin a frame, time differences that cross frame boundaries, North and Sourth time over threshold parameters and a crude position spectrum using the time over thresholds and light division.
+
+This code is intended as an example rather than production code.
+
+The header: miku_decoder.h
+
+```c++
+#ifndef MIKU_DECODER_H
+#define MIKU_DECODER_H
+#include <EventProcessor.h>
+#include <TreeParameter.h>
+
+class CEvent;
+class CAnalyzer;
+class CBufferDecoder;
+class CTreeParameter;
+class CTreeParameterArray;
+
+class Miku_diffs : public CEventProcessor {
+    CTreeParameter diff;      // Time diff in a frame.
+    CTreeParameter diff_cross;      // Time diff across frames.
+    CTreeParameterArray tots;  // Time over thresholds chan0, chan1.
+    CTreeParameter position;
+ public:
+    Miku_diffs();
+    virtual Bool_t operator()(const Address_t pEvent,
+                            CEvent& rEvent,
+                            CAnalyzer& rAnalyzer,
+                            CBufferDecoder& rDecoder); 
+ 
+};
+
+#endif
+```
+
+The implementation of that class is: miku_decoder.cpp:
+
+```c++
+#include "miku_decoder.h"
+#include <stdint.h>
+#include <vector>
+#include <BufferDecoder.h>
+
+/* constructor */
+
+Miku_diffs::Miku_diffs() :
+    diff("diff"),
+    diff_cross("diff-cross"),
+    tots("TOT", 2, 0),
+    position("Pos")
+     {}
+
+/**
+ * Decode the data we have data of the form
+ * |fall| chan | (16 bits)
+ * | time      | (64 bits)
+ * 
+ * where a first 16 bit word of 0xffff means a frame boundary.
+ * We're going to fill iin diff from differences that don't cross frame
+ * boundaries and diff_cross with those that do.
+ * We assume there are at most 2 actual hits.
+ */
+Bool_t
+Miku_diffs:: operator()(const Address_t pEvent,
+                            CEvent& rEvent,
+                            CAnalyzer& rAnalyzer,
+                            CBufferDecoder& rDecoder) {
+    // This union has 16 and 64  bit pointers.
+
+    union {
+        uint16_t* pw;
+        uint32_t* pl;
+        uint64_t* pq;
+    } p;
+    p.pw = static_cast<uint16_t*>(pEvent);
+    bool crosses = false;
+    std::vector<uint64_t> hits;    // Order(0) don't care about the channels:
+    UInt_t n = rDecoder.getBodySize();
+
+
+    while(n) {
+        uint16_t header = *p.pw++;
+        uint64_t time   = *p.pq++;
+        uint32_t tot    = *p.pl++; 
+        n -= sizeof(uint16_t) + sizeof(uint64_t) + sizeof(uint32_t);
+        if (header == 0xffff) {
+            // frame boundary
+            if (hits.size() > 0) {
+                crosses = true;        // Hits cross boundary.
+            }
+        } else {
+            hits.push_back(time);
+            uint16_t chan = header & 0x7fff;
+            if (chan < 2) {
+                tots[chan] = tot;
+            }
+        }
+    }
+    
+    if (hits.size() >= 2) {
+        uint64_t tdiff = hits[1] - hits[0];   // time difference.
+        if (crosses) {
+            diff_cross = double(tdiff);
+        } else {
+            diff = double(tdiff);
+        }
+        position = 1024*(tots[0] - tots[1])/(tots[0] + tots[1]);
+
+    }
+
+    return kfTRUE;
+}
+```
