@@ -142,7 +142,6 @@ impl Glom {
 #[cfg(test)]
 mod glom_tests {
     use super::*;
-    use std::any::Any;
 
     // Here's a struct that implements a data sink for our tests. It just copies the ring item.
 
@@ -228,9 +227,226 @@ mod glom_tests {
             assert_eq!(bytes[i], v);
             v += 1;
         }
-        
+    
     }
+    #[test]
+    fn add_frame_1() {
+        // Add a frame boundary.
 
+        let sink = Box::new(TestSink {item: None});
+        let p    = Box::into_raw(sink);
+        let rsink = unsafe {&*p};
+        let x = unsafe { Box::from_raw(p)};
+        
+        let mut glom = Glom::new(x, 1, 100);
+
+        glom.add_frame_boundary(123);
+
+        // Should add an pseudo hit but not write:
+
+        assert_eq!(glom.hits.len(), 1);
+        assert_eq!(glom.hits[0], (0xffffu16, 123u64, 0xffffffffu32));
+        assert!(rsink.item.is_none());
+    }   
+    #[test]
+    fn add_hit_1() {
+        let sink = Box::new(TestSink {item: None});
+        let p    = Box::into_raw(sink);
+        let rsink = unsafe {&*p};
+        let x = unsafe { Box::from_raw(p)};
+        
+        let mut glom = Glom::new(x, 1, 100);
+        glom.add_hit(true, 1, 0, 666);    // The hit.
+        assert_eq!(glom.hits.len(), 1);
+        assert_eq!(glom.hits[0], (1u16, 0u64, 666u32));
+        assert!(rsink.item.is_none());
+
+    } 
+    #[test]
+    fn add_hit_2() {
+        let sink = Box::new(TestSink {item: None});
+        let p    = Box::into_raw(sink);
+        let rsink = unsafe {&*p};
+        let x = unsafe { Box::from_raw(p)};
+        
+        let mut glom = Glom::new(x, 1, 100);
+        glom.add_hit(true, 1, 0, 666);    // The hit.
+        glom.add_frame_boundary(123);
+        assert_eq!(glom.hits.len(), 2);
+        assert_eq!(glom.hits[0], (1u16, 0u64, 666u32));
+        assert_eq!(glom.hits[1], (0xffffu16, 123u64, 0xffffffffu32));
+        assert!(rsink.item.is_none());
+    }
+    #[test]
+    fn add_hit_3() {
+        // Two hits inside dt don't write
+
+        let sink = Box::new(TestSink {item: None});
+        let p    = Box::into_raw(sink);
+        let rsink = unsafe {&*p};
+        let x = unsafe { Box::from_raw(p)};
+        
+        let mut glom = Glom::new(x, 1, 100);
+        glom.add_hit(true, 1, 0, 666);    // The first hit.
+        glom.add_hit(true, 0, 50, 666);   // dt is 100.
+
+        assert_eq!(glom.hits.len(), 2);
+        assert_eq!(glom.hits[0], (1u16, 0u64, 666u32));
+        assert_eq!(glom.hits[1], (0u16, 50u64, 666u32));
+        assert!(rsink.item.is_none());
+    }
+    #[test]
+    fn add_hit_4() {
+        // two hits outside dt writes the first.
+        let sink = Box::new(TestSink {item: None});
+        let p    = Box::into_raw(sink);
+        let rsink = unsafe {&*p};
+        let x = unsafe { Box::from_raw(p)};
+        
+        let mut glom = Glom::new(x, 1, 100);
+        glom.add_hit(true, 1, 50, 666);    // The first hit.
+        glom.add_hit(true, 0, 151, 666);   // dt is 100.
+
+        assert_eq!(glom.hits.len(), 1);    // Second hit still retained.
+        assert_eq!(glom.hits[0], (0u16, 151u64, 666u32));   // this is hit 0.
+
+        // Should have written:
+
+        assert!(rsink.item.is_some());
+        let item = rsink.item.as_ref().unwrap();
+        assert_eq!(item.type_id(), PHYSICS_EVENT);
+        assert!(item.has_body_header());        // THere is a body header and...
+        let bh = item.get_bodyheader().unwrap();
+        assert_eq!(bh.timestamp, 50);           // body header has 1'st item timestamp.
+        assert_eq!(bh.source_id, 1);
+        assert_eq!(bh.barrier_type, 0); 
+
+        let body_offset = size_of::<u64>() + 2*size_of::<u32>();
+        let payload = &item.payload()[body_offset..];
+
+        // Body has one hit:
+
+        assert_eq!(payload.len(), size_of::<u16>() + size_of::<u64>() + size_of::<u32>());
+
+        let chan  = u16::from_le_bytes(payload[0..2].try_into().unwrap());
+        assert_eq!(chan, 1);
+
+        let ts = u64::from_le_bytes(payload[2..10].try_into().unwrap());  
+        assert_eq!(ts, 50);
+
+        let tot = u32::from_le_bytes(payload[10..14].try_into().unwrap());
+        assert_eq!(tot, 666);
+    }
+    #[test]
+    fn add_hit_5() {
+        // a hit, frame then a hit outside dt writes
+        // the hit and frame boundary.
+        let sink = Box::new(TestSink {item: None});
+        let p    = Box::into_raw(sink);
+        let rsink = unsafe {&*p};
+        let x = unsafe { Box::from_raw(p)};
+        
+        let mut glom = Glom::new(x, 1, 100);
+        glom.add_hit(true, 1, 50, 666);    // The first hit.
+        glom.add_frame_boundary(10);
+        glom.add_hit(true, 0, 151, 666);   // dt is 100.
+
+        assert_eq!(glom.hits.len(), 1);    // Second hit still retained.
+        assert_eq!(glom.hits[0], (0u16, 151u64, 666u32));   // this is hit 0.
+
+        // Should have written:
+
+        assert!(rsink.item.is_some());
+        let item = rsink.item.as_ref().unwrap();
+        assert_eq!(item.type_id(), PHYSICS_EVENT);
+        assert!(item.has_body_header());        // THere is a body header and...
+        let bh = item.get_bodyheader().unwrap();
+        assert_eq!(bh.timestamp, 50);           // body header has 1'st item timestamp.
+        assert_eq!(bh.source_id, 1);
+        assert_eq!(bh.barrier_type, 0); 
+
+        let body_offset = size_of::<u64>() + 2*size_of::<u32>();
+        let payload = &item.payload()[body_offset..];
+
+        // size of the payload is 2 hits:
+
+        let hit_size = size_of::<u16>() + size_of::<u64>() + size_of::<u32>();
+        assert_eq!(payload.len(), hit_size*2);
+
+        
+        let chan  = u16::from_le_bytes(payload[0..2].try_into().unwrap());
+        assert_eq!(chan, 1);
+
+        let ts = u64::from_le_bytes(payload[2..10].try_into().unwrap());  
+        assert_eq!(ts, 50);
+
+        let tot = u32::from_le_bytes(payload[10..14].try_into().unwrap());
+        assert_eq!(tot, 666);
+
+        let chan  = u16::from_le_bytes(payload[hit_size..hit_size+2].try_into().unwrap());
+        assert_eq!(chan, 0xffff);
+
+        let ts = u64::from_le_bytes(payload[hit_size+2..hit_size+10].try_into().unwrap());  
+        assert_eq!(ts, 10);
+
+        let tot = u32::from_le_bytes(payload[hit_size+10..hit_size+14].try_into().unwrap());
+        assert_eq!(tot, 0xffffffff);
+    }
+    #[test]
+    fn add_hit_6() {
+        // two hits inside dt followed by one out writes the first two.
+        
+        let sink = Box::new(TestSink {item: None});
+        let p    = Box::into_raw(sink);
+        let rsink = unsafe {&*p};
+        let x = unsafe { Box::from_raw(p)};
+        
+        let mut glom = Glom::new(x, 1, 100);
+        glom.add_hit(true, 1, 50, 666);    // The first hit.
+        glom.add_hit(true, 0, 75, 666);    // second hit in time window.
+        glom.add_hit(true, 1, 151, 666);   // outside of window.
+
+        assert_eq!(glom.hits.len(), 1);    // Second hit still retained.
+        assert_eq!(glom.hits[0], (1u16, 151u64, 666u32));   // this is hit 0.
+
+        // Should have written:
+
+        assert!(rsink.item.is_some());
+        let item = rsink.item.as_ref().unwrap();
+        assert_eq!(item.type_id(), PHYSICS_EVENT);
+        assert!(item.has_body_header());        // THere is a body header and...
+        let bh = item.get_bodyheader().unwrap();
+        assert_eq!(bh.timestamp, 50);           // body header has 1'st item timestamp.
+        assert_eq!(bh.source_id, 1);
+        assert_eq!(bh.barrier_type, 0); 
+
+        let body_offset = size_of::<u64>() + 2*size_of::<u32>();
+        let payload = &item.payload()[body_offset..];
+
+        // size of the payload is 2 hits:
+
+        let hit_size = size_of::<u16>() + size_of::<u64>() + size_of::<u32>();
+        assert_eq!(payload.len(), hit_size*2);
+
+        let chan  = u16::from_le_bytes(payload[0..2].try_into().unwrap());
+        assert_eq!(chan, 1);
+
+        let ts = u64::from_le_bytes(payload[2..10].try_into().unwrap());  
+        assert_eq!(ts, 50);
+
+        let tot = u32::from_le_bytes(payload[10..14].try_into().unwrap());
+        assert_eq!(tot, 666);
+
+        let chan  = u16::from_le_bytes(payload[hit_size..hit_size+2].try_into().unwrap());
+        assert_eq!(chan, 0);
+
+        let ts = u64::from_le_bytes(payload[hit_size+2..hit_size+10].try_into().unwrap());  
+        assert_eq!(ts, 75);
+
+        let tot = u32::from_le_bytes(payload[hit_size+10..hit_size+14].try_into().unwrap());
+        assert_eq!(tot, 666);
+
+    }
 }
 /// Merges hits into a fully time ordered stream.
 /// The output of this can be inserted into a Glom
