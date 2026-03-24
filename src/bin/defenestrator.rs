@@ -115,7 +115,7 @@ fn convert_item(item : &RingItem, glom  : &mut glom::Glom) {
                     
                 },
                 mikumari_format::MikumariDatum::TrailingEdge(te) => {
-                    let t : u64 = te.tot() as u64 + t0;
+                    let t : u64 = te.time() as u64 + t0;
                     orderer.add_hit(false, te.channel() as u16, t, te.tot());
                 },
                 _ => {},              // ANything else is not passed through.
