@@ -1,7 +1,9 @@
+#![allow(unused)]
 ///! Contains the formatting  stuff for mikumari data
 ///! 
 ///! 
 ///! 
+
 pub const MIKUMARI_FRAME_ITEM_TYPE: u32=51;
 use std::io::Read;
 use std::io;
@@ -18,7 +20,9 @@ pub const DELIMETER2  : u8 = 0b011110;
 
 /// A heartbeat delimieter1 and its data:
 /// 
+
 pub struct Delimeter1 {
+
     delimeter : u64
 }
 pub struct Delimeter2 {
@@ -113,7 +117,7 @@ impl HRTDCLeading {
         
         ((self.leading  >> 51) & 0x7f) as u8
     }
-    pub fn TOT(&self) -> u32 {
+    pub fn tot(&self) -> u32 {
         ((self.leading >> 29) & 0x3fffff) as u32
     }
     pub fn Time(&self) -> u32 {
@@ -153,7 +157,7 @@ impl HRTDCTrailing {
     }
     pub fn TOT(&self) -> u32 {
         let leading = HRTDCLeading { leading: self.trailing};
-        leading.TOT()
+        leading.tot()
     }
     pub fn Time(&self) -> u32 {
         let leading = HRTDCLeading { leading: self.trailing};
@@ -281,7 +285,7 @@ mod hrtdc {
     #[test]
         fn tot_1() {
         let leading = HRTDCLeading::new(10, 100, 12345);
-        assert_eq!(leading.TOT(), 100);
+        assert_eq!(leading.tot(), 100);
     }
     #[test]
         fn time_1() {
