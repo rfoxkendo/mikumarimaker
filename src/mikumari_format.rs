@@ -120,7 +120,7 @@ impl HRTDCLeading {
     pub fn tot(&self) -> u32 {
         ((self.leading >> 29) & 0x3fffff) as u32
     }
-    pub fn Time(&self) -> u32 {
+    pub fn time(&self) -> u32 {
         (self.leading & 0x1FFFFFFF) as u32
     }
     pub fn get(&self) -> u64 {
@@ -155,13 +155,13 @@ impl HRTDCTrailing {
         
         leading.channel()
     }
-    pub fn TOT(&self) -> u32 {
+    pub fn tot(&self) -> u32 {
         let leading = HRTDCLeading { leading: self.trailing};
         leading.tot()
     }
-    pub fn Time(&self) -> u32 {
+    pub fn time(&self) -> u32 {
         let leading = HRTDCLeading { leading: self.trailing};
-        leading.Time()
+        leading.time()
     }
     pub fn get(&self) -> u64 {
         self.trailing
@@ -290,7 +290,7 @@ mod hrtdc {
     #[test]
         fn time_1() {
         let leading = HRTDCLeading::new(10, 100, 12345);
-        assert_eq!(leading.Time(), 12345);
+        assert_eq!(leading.time(), 12345);
     }
     // trailing edge tests
 
@@ -313,11 +313,11 @@ mod hrtdc {
     #[test]
         fn tot_2() {
         let trailing = HRTDCTrailing::new(10, 100, 12345);
-        assert_eq!(trailing.TOT(), 100);
+        assert_eq!(trailing.tot(), 100);
     }
     #[test]
         fn time_2() {
         let trailing = HRTDCTrailing::new(10, 100, 12345);
-        assert_eq!(trailing.Time(), 12345);
+        assert_eq!(trailing.time(), 12345);
     }
 }

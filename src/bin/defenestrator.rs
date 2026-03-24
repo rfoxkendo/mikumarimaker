@@ -110,13 +110,13 @@ fn convert_item(item : &RingItem, glom  : &mut glom::Glom) {
             
             match mikumari_format::MikumariDatum::from_u64(raw) {
                 mikumari_format::MikumariDatum::LeadingEdge(le)  => {
-                    let t : u64 = le.Time() as u64 + t0;
+                    let t : u64 = le.time() as u64 + t0;
                     orderer.add_hit(true, le.channel() as u16, t, le.tot());
                     
                 },
                 mikumari_format::MikumariDatum::TrailingEdge(te) => {
-                    let t : u64 = te.Time() as u64 + t0;
-                    orderer.add_hit(false, te.channel() as u16, t, te.TOT());
+                    let t : u64 = te.tot() as u64 + t0;
+                    orderer.add_hit(false, te.channel() as u16, t, te.tot());
                 },
                 _ => {},              // ANything else is not passed through.
             }
