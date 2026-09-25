@@ -55,12 +55,9 @@ fn main() {
     while let Some(item) = source.read() {
         convert_item(&item, &mut glom);
     }
+    // In case there's no eof, flush glom.
 
-
-    // For mikumari data, each frame -> a defenestrated frame.
-    //while let Some(item) = source.read() {
-    //    convert_item(&item, &mut sink);
-    //}
+    glom.flush()
 
 }
 
@@ -131,9 +128,7 @@ fn convert_item(item : &RingItem, glom  : &mut glom::Glom) {
             glom.add_hit(*rising, *chan as u8, *time, *tot);
         }
 
-        // In case there's on end run:
 
-        glom.flush();
         
     }
         
