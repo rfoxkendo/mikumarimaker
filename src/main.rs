@@ -161,7 +161,7 @@ fn dump_data(src : &mut mikumari_format::MikumariReader, t0 : u64, sid: u32, rf 
                 ring_item = RingItem::new_with_body_header(
                     mikumari_format::MIKUMARI_FRAME_ITEM_TYPE,
                     hb_frame_to_ts(frame_no) as u64,
-                    0,0
+                    sid,0
                 );
                 ring_item.add(absolute_frame);
             }
